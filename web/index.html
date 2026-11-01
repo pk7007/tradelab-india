@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="__CSRF_TOKEN__">
+  <meta name="theme-color" content="#10130f">
+  <title>TradeLab — Automation control room</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+  <script src="/market.js" defer></script>
+  <script src="/automation.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="/" aria-label="TradeLab India home">
+        <span class="brand-mark">T<span>·</span></span>
+        <span><strong>tradelab</strong><small>EXECUTION WORKSPACE</small></span>
+      </a>
+      <div class="side-label">WORKSPACE</div>
+      <nav class="side-nav" aria-label="Main navigation">
+        <button class="nav-item active" data-view="automation"><span class="nav-icon">◈</span> Automation</button>
+        <button class="nav-item" data-view="overview"><span class="nav-icon">◫</span> Overview</button>
+        <button class="nav-item" data-view="orders"><span class="nav-icon">↗</span> Orders <span class="nav-count" id="order-count">—</span></button>
+        <button class="nav-item" data-view="holdings"><span class="nav-icon">▤</span> Holdings</button>
+        <button class="nav-item" data-view="positions"><span class="nav-icon">▥</span> Positions</button>
+        <button class="nav-item" data-view="market"><span class="nav-icon">∿</span> Market data</button>
+        <button class="nav-item" data-view="research"><span class="nav-icon">◇</span> Strategy lab</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="connection-card">
+          <span class="connection-dot" id="side-dot"></span>
+          <div><strong id="side-connection">Not connected</strong><small>Zerodha Kite Connect</small></div>
+        </div>
+        <div class="side-footer">LOCAL SESSION <span>·</span> PRIVATE BY DEFAULT</div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div class="crumb">Workspace <span>/</span> <strong id="crumb-view">Overview</strong></div>
+        <div class="top-actions">
+          <span class="live-indicator"><i></i> BROKER DATA</span>
+          <button class="icon-button" id="refresh-button" title="Refresh data" aria-label="Refresh data">⟳</button>
+          <button class="account-button" id="account-button"><span class="avatar" id="avatar">—</span><span id="account-name">Local session</span><span class="chevron">⌄</span></button>
+        </div>
+      </header>
+
+      <div class="content-wrap">
+        <section class="page-heading">
+          <div><div class="eyebrow" id="today-label">MARKET WORKSPACE</div><h1 id="page-title">Your market, in focus.</h1><p id="page-subtitle">A clear view of your Zerodha account and open activity.</p></div>
+          <div class="heading-actions">
+            <span class="mode-pill" id="mode-pill"><i></i> CONNECTING</span>
+            <button class="button button-dark" id="connect-button">Connect Zerodha <span>↗</span></button>
+          </div>
+        </section>
+
+        <div class="notice" id="notice" role="status" hidden></div>
+        <div class="risk-banner" id="risk-banner"><span class="risk-icon">!</span><div><strong>Live trading is locked</strong><span>Orders are sent to your Zerodha account only after local setup, an order review, and explicit confirmation.</span></div><span class="lock-tag">DISABLED BY DEFAULT</span></div>
+
+        <section id="automation-workspace">
+<div class="auto-hero"><div><span class="eyebrow">CONTROL ROOM / ZERODHA</span><h2>Define the rules.<br>Stay in control.</h2><p>One place for strategy configuration, execution readiness and a durable audit trail.</p></div><div class="engine-badge"><span class="pulse-ring"></span><strong id="engine-state">DISABLED</strong><small>Live automation locked</small></div></div>
+<div class="auto-metrics"><article><span>STRATEGY VERSION</span><strong id="auto-version">Not configured</strong></article><article><span>EXECUTION MODE</span><strong>Disabled</strong></article><article><span>RECONCILIATION</span><strong id="auto-reconciled">Required</strong></article><article><span>INTENT LEDGER</span><strong id="auto-count">0</strong></article></div>
+<div class="automation-grid"><section class="panel"><div class="panel-heading"><div><div class="eyebrow">01 / STRATEGY</div><h2>Configure your strategy</h2></div><span class="manual-tag">DRAFT ONLY</span></div>
+<form id="auto-config" class="market-form"><p class="market-status">Prototype: long-only moving-average rule, NSE equities, MIS, five-minute completed bars. The chosen window is saved for review. The live scheduler, exits and unattended execution are not yet available.</p>
+<label class="field"><span>ALLOWED SYMBOLS · COMMA SEPARATED</span><input name="symbols" placeholder="Enter your chosen NSE symbols" required></label>
+<div class="research-grid" id="auto-fields"></div>
+<div class="field-row"><label class="field"><span>ENTRY WINDOW START · IST</span><input type="time" name="start" required></label><label class="field"><span>ENTRY WINDOW END · IST</span><input type="time" name="end" required></label></div>
+<label class="field"><span>UNFILLED EXIT RECOVERY</span><select name="exitPolicy"><option value="manual-review">Stop entries and request manual broker review</option></select></label>
+<p class="market-status">No overnight positions intended. Automatic square-off and protective exit handling still need implementation. Saving a version does not approve or activate it.</p>
+<button class="button button-primary" type="submit">Save strategy version</button><p id="auto-message" role="status" class="market-status"></p></form></section>
+<aside><section class="panel"><div class="panel-heading"><div><div class="eyebrow">02 / READINESS</div><h2>Before activation</h2></div></div><div class="market-form"><ul id="auto-blockers"></ul><div class="auto-controls"><button class="button button-primary" id="auto-start">Check start readiness</button><button class="button button-outline" id="auto-pause">Pause new entries</button><button class="button button-danger" id="auto-stop">Stop engine</button></div><p class="market-status">Pause and stop block new entries. They do not cancel broker orders or close positions.</p><hr><button class="button button-outline" disabled title="Broker cancellation adapter is not implemented">Cancel pending orders · unavailable</button><button class="button button-danger" disabled title="Position reconciliation and confirmed exit adapter are not implemented">Flatten positions · unavailable</button><p class="market-status">Use Zerodha directly for cancellations and position exits until these adapters are verified.</p></div></section>
+<section class="panel auto-note"><div class="eyebrow">WORKSPACE MAP</div><h3>Research → review → execute</h3><p>Research stays separate from execution. Explore charts and strategy tests in their own workspaces; review broker orders and positions in the account views.</p></section></aside></div>
+<section class="panel"><div class="panel-heading"><div><div class="eyebrow">03 / EXECUTION</div><h2>Durable order intents</h2></div><span class="manual-tag">NO LIVE DISPATCH</span></div><div class="table-wrap"><table><thead><tr><th>Intent</th><th>Symbol</th><th>Side</th><th>Quantity</th><th>Filled</th><th>State</th></tr></thead><tbody id="auto-intents"></tbody></table></div></section>
+<section class="panel"><div class="panel-heading"><div><div class="eyebrow">04 / AUDIT</div><h2>Activity timeline</h2></div><button class="text-button" id="auto-refresh">Refresh</button></div><div id="auto-events" class="audit-list"></div></section>
+</section>
+<section class="stat-grid" aria-label="Account summary">
+          <article class="stat-card"><div class="stat-top"><span>HOLDINGS VALUE</span><span class="stat-icon">▤</span></div><div class="stat-value" id="holdings-value">—</div><div class="stat-note" id="holdings-note">Connect to load your account</div></article>
+          <article class="stat-card"><div class="stat-top"><span>DAY P&amp;L</span><span class="stat-icon">↗</span></div><div class="stat-value" id="day-pnl">—</div><div class="stat-note" id="pnl-note">From open positions</div></article>
+          <article class="stat-card"><div class="stat-top"><span>OPEN POSITIONS</span><span class="stat-icon">▥</span></div><div class="stat-value" id="position-count">—</div><div class="stat-note">Intraday and carry-forward</div></article>
+          <article class="stat-card"><div class="stat-top"><span>TODAY'S ORDERS</span><span class="stat-icon">↗</span></div><div class="stat-value" id="orders-total">—</div><div class="stat-note" id="orders-note">Broker order book</div></article>
+        </section>
+
+        <section class="main-grid">
+          <div class="panel activity-panel" id="activity-panel">
+            <div class="panel-heading"><div><div class="eyebrow">ACCOUNT ACTIVITY</div><h2 id="table-title">Recent orders</h2></div><button class="text-button" data-view="orders">View all <span>→</span></button></div>
+            <div class="table-wrap"><table><thead id="table-head"></thead><tbody id="table-body"></tbody></table><div class="empty-state" id="empty-state"><div class="empty-mark">↗</div><strong>Your account view starts here</strong><p>Connect through Zerodha to securely load holdings, positions, and orders.</p><button class="button button-outline" data-connect>Connect Zerodha <span>↗</span></button></div></div>
+          </div>
+
+          <aside class="panel order-panel">
+            <div class="panel-heading order-panel-heading"><div><div class="eyebrow">MANUAL ORDER ENTRY</div><h2>New order</h2></div><span class="manual-tag">REVIEW FIRST</span></div>
+            <div class="order-lock" id="order-lock"><span class="lock-icon">⌑</span><div><strong>Connect your account</strong><p>Use Zerodha's official sign-in. TradeLab never asks for your broker password or TOTP.</p></div></div>
+            <form id="order-form" class="order-form" hidden>
+              <div class="field-row"><label class="field"><span>EXCHANGE</span><select name="exchange"><option>NSE</option><option>BSE</option><option>NFO</option><option>CDS</option><option>BCD</option><option>MCX</option></select></label><label class="field"><span>SYMBOL</span><input name="tradingsymbol" autocomplete="off" placeholder="e.g. INFY" maxlength="40" required></label></div>
+              <div class="field-row"><label class="field"><span>TRANSACTION</span><select name="transaction_type"><option>BUY</option><option>SELL</option></select></label><label class="field"><span>QUANTITY</span><input name="quantity" type="number" min="1" max="1000000" value="1" required></label></div>
+              <div class="field-row"><label class="field"><span>PRODUCT</span><select name="product"><option value="CNC">CNC · Delivery</option><option value="MIS">MIS · Intraday</option><option value="NRML">NRML · Carry forward</option></select></label><label class="field"><span>ORDER TYPE</span><select name="order_type" id="order-type"><option>MARKET</option><option>LIMIT</option><option>SL</option><option>SL-M</option></select></label></div>
+              <div class="field-row" id="price-fields" hidden><label class="field" id="price-field"><span>LIMIT PRICE (₹)</span><input name="price" type="number" min="0.05" step="0.05" placeholder="0.00"></label><label class="field" id="trigger-field" hidden><span>TRIGGER PRICE (₹)</span><input name="trigger_price" type="number" min="0.05" step="0.05" placeholder="0.00"></label><label class="field" id="validity-field"><span>VALIDITY</span><select name="validity"><option>DAY</option><option>IOC</option></select></label></div>
+              <div class="quote-line"><span>Order will be placed through your broker account.</span><button type="button" class="text-button" id="quote-button">Check LTP</button></div>
+              <div class="quote-result" id="quote-result" hidden></div>
+              <button class="button button-primary order-review" type="submit">Review order <span>→</span></button>
+              <div class="confirmation" id="confirmation" hidden>
+                <div class="confirm-summary" id="confirm-summary"></div>
+                <label class="field confirm-field" id="confirm-field"><span>TYPE PLACE LIVE ORDER TO CONTINUE</span><input id="confirm-text" autocomplete="off" placeholder="PLACE LIVE ORDER"></label>
+                <div class="confirm-lock" id="confirm-lock" hidden>Order review only. To enable live submission, set <code>TRADELAB_ENABLE_LIVE_ORDERS=true</code> in your local .env file and restart TradeLab.</div>
+                <button class="button button-danger" id="place-order-button" type="button" disabled>Place live order <span>↗</span></button>
+                <button class="text-button cancel-confirm" id="cancel-confirm" type="button">Cancel review</button>
+              </div>
+            </form>
+            <div class="order-footnote"><span>ⓘ</span> Review the symbol, side, product, quantity, price and exchange on the confirmation screen. Orders may execute immediately.</div>
+          </aside>
+        </section>
+
+        <section id="market-workspace" class="market-workspace" hidden>
+          <div class="panel market-controls">
+            <div class="panel-heading"><div><div class="eyebrow">KITE CONNECT · PRIVATE ACCOUNT USE</div><h2>Historical candles</h2></div><span class="manual-tag">NSE EQUITIES</span></div>
+            <form id="history-form" class="market-form">
+              <label class="field"><span>SEARCH CURRENT INSTRUMENTS</span><input id="instrument-search" placeholder="e.g. INFY" autocomplete="off" maxlength="40"></label>
+              <button class="button button-outline" type="button" id="instrument-find">Search instruments</button>
+              <div id="instrument-results" class="market-status" aria-live="polite"></div>
+              <label class="field"><span>SYMBOLS, SEPARATED BY COMMAS · MAXIMUM 25</span><input id="history-symbols" value="RELIANCE,INFY,TCS,HDFCBANK,ICICIBANK" required></label>
+              <div class="field-row"><label class="field"><span>FROM · INDIA TIME</span><input id="history-from" type="date" required></label><label class="field"><span>TO · INDIA TIME</span><input id="history-to" type="date" required></label></div>
+              <label class="field"><span>CANDLE INTERVAL</span><select id="history-interval"><option value="day">Daily</option><option value="minute">1 minute</option><option value="3minute">3 minutes</option><option value="5minute">5 minutes</option><option value="10minute">10 minutes</option><option value="15minute">15 minutes</option><option value="30minute">30 minutes</option><option value="60minute">60 minutes</option></select></label>
+              <div class="market-actions"><button type="button" class="text-button" id="daily-preset">5 years · daily</button><button type="button" class="text-button" id="intraday-preset">90 days · 5 minutes</button></div>
+              <label class="storage-option"><input id="history-save" type="checkbox" disabled> Save CSV files to this computer</label>
+              <p class="market-status" id="storage-note">Permanent storage requires confirmed data-storage rights. History can be viewed in memory. Market data is excluded from Git.</p>
+              <div class="market-actions"><button type="submit" id="history-load" class="button button-primary">Load historical candles</button><button type="button" id="history-cancel" class="button button-outline" disabled>Cancel request</button></div>
+            </form>
+          </div>
+          <div class="panel market-chart-panel">
+            <div class="panel-heading"><div><div class="eyebrow">HISTORICAL DATA · NO PREDICTIONS</div><h2>Price history</h2></div><select id="history-chart-symbol" aria-label="Chart instrument"></select></div>
+            <p id="history-status" class="market-status" role="status">Connect Zerodha, choose a date range, and load candles.</p>
+            <div id="history-chart" class="chart-surface" role="img" aria-label="Historical price chart"><p>No historical data loaded.</p></div>
+            <p id="history-chart-caption" class="market-status"></p>
+            <div class="table-wrap market-table"><table><thead><tr><th>Date (IST)</th><th>Open</th><th>High</th><th>Low</th><th>Close</th><th>Volume</th></tr></thead><tbody id="history-rows"></tbody></table></div>
+          </div>
+          <div class="panel live-panel">
+            <div class="panel-heading"><div><div class="eyebrow">BROKER WEBSOCKET · LATEST 1,000 TICKS</div><h2>Live price stream</h2></div><span id="stream-state" class="manual-tag">STOPPED</span></div>
+            <div class="market-form"><div class="field-row"><label class="field"><span>NSE EQUITY SYMBOL</span><input id="stream-symbol" value="INFY" maxlength="40"></label><div class="market-actions"><button id="stream-start" class="button button-primary" type="button">Start stream</button><button id="stream-stop" class="button button-outline" type="button">Stop</button></div></div><p id="stream-info" class="market-status" role="status">No stream started. Prices appear only when the broker sends ticks.</p><div id="live-chart" class="chart-surface" role="img" aria-label="Live last traded price chart"><p>No live ticks received.</p></div><p class="market-status">Chart times are receipt times shown in India time. This is a last-price line, not an exchange tick archive. An idle tab's stream closes after 90 seconds.</p></div>
+          </div>
+        </section>
+        <section id="research-workspace" hidden><div class="panel"><div class="panel-heading"><h2>Execution stress lab</h2></div><p class="market-status">24 deterministic synthetic scenarios and cost/delay variants. Illustrative settings only; no broker data or orders.</p><button id="stress-run" class="button button-secondary">Run synthetic stress tests</button><p id="stress-status" role="status" class="market-status"></p><div id="stress-results" class="table-wrap"></div></div>
+<div class="panel"><div class="panel-heading"><h2>Stock research rankings</h2><span class="pill">UNVALIDATED BASELINE</span></div>
+<p class="market-status">Load a historical request in Market data first. Rankings describe trailing price momentum in your selected universe, not future gains. No orders can be placed from this screen.</p>
+<form id="ranking-form" class="market-form"><label class="field"><span>RESEARCH HORIZON</span><select id="ranking-horizon"><option value="swing">Swing · daily candles</option><option value="intraday">Intraday · five-minute candles</option><option value="long-term">Long term · evidence unavailable</option></select></label>
+<p class="market-status">Uses the current time and completed bars only. Historical ranges ending more than seven days ago are rejected as stale for current daily rankings.</p>
+<button class="button button-primary" type="submit">Evaluate research universe</button></form>
+<p id="ranking-status" class="market-status" role="status">No evaluation run. Live automation disabled.</p>
+<div id="ranking-results"></div><p id="ranking-limitations" class="market-status"></p>
+<details><summary>Session experiment records</summary><p class="market-status">Up to 30 metadata records, including failures. Memory only; lost on page refresh. Contains hashes, not a market-data export.</p><pre id="ranking-records"></pre></details></div>
+
+          <div class="notice">Synthetic educational example. No Kite prices, live orders, or evidence of profitability.</div>
+          <div class="panel"><div class="panel-heading"><div><div class="eyebrow">REPRODUCIBLE RESEARCH · SEED 42</div><h2>Moving-average rule simulator</h2></div><span class="manual-tag">SYNTHETIC DATA</span></div>
+          <form id="research-form" class="market-form"><div class="research-grid"><label class="field"><span>FAST WINDOW</span><input id="research-fast" type="number" min="2" max="99" value="10" required></label><label class="field"><span>SLOW WINDOW</span><input id="research-slow" type="number" min="3" max="100" value="30" required></label><label class="field"><span>FEES PER FILL · BASIS POINTS</span><input id="research-cost" type="number" min="0" max="100" step="0.1" value="10" required></label><label class="field"><span>SLIPPAGE · BASIS POINTS</span><input id="research-slip" type="number" min="0" max="100" step="0.1" value="5" required></label></div><p class="market-status">Illustrative rule: hold when the fast average exceeds the slow average; otherwise hold cash. Signals use completed bars and fill at the next bar's open. These settings are examples, not trade recommendations.</p><button class="button button-primary" type="submit">Run synthetic simulation</button><p id="research-result" class="market-status" role="status"></p><div id="research-chart" class="chart-surface" role="img" aria-label="Synthetic simulation equity chart"><p>No simulation run yet.</p></div><p id="research-assumptions" class="market-status"></p></form></div>
+          <div class="panel strategy-status"><h2>Live automation: not configured</h2><p>Specify exact entry and exit rules, instruments, position sizing, daily loss limits, and shutdown behavior before a live strategy can be implemented. This research panel has no connection to the order API.</p></div>
+        </section>
+        <footer class="page-footer"><span>TradeLab India <b>·</b> Zerodha connector</span><span>Local session <b>·</b> Not investment advice</span></footer>
+      </div>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

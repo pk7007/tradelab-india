@@ -1,0 +1,25 @@
+name: Offline application checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  offline-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          python -m py_compile app.py automation.py market_data.py research.py validation_lab.py scripts/weekly_digest.py
+          node --check web/app.js
+          node --check web/market.js
+          node --check web/automation.js
+      - name: Offline data and research tests
+        run: python -m unittest discover -s tests -v

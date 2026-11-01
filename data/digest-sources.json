@@ -1,0 +1,46 @@
+{
+  "registry_last_checked": "2026-10-31",
+  "workflow_enabled": false,
+  "sources": [
+    {
+      "id": "sebi-rss",
+      "name": "Securities and Exchange Board of India (SEBI) RSS",
+      "url": "https://www.sebi.gov.in/rss.html",
+      "feed_url": "https://www.sebi.gov.in/sebirss.xml",
+      "terms_notes": "Official SEBI page describes the feed as headlines, links, and article summaries. Automated reuse/republication permission and applicable site terms have not been confirmed. Review before enabling; retain only permitted short metadata/excerpts and attribution.",
+      "last_checked": "2026-10-31",
+      "enabled": false,
+      "category": "Regulation"
+    },
+    {
+      "id": "rbi-press-releases",
+      "name": "Reserve Bank of India (RBI) Press Releases RSS",
+      "url": "https://www.rbi.org.in/Scripts/rss.aspx",
+      "feed_url": "https://www.rbi.org.in/pressreleases_rss.xml",
+      "terms_notes": "Official RBI RSS page describes feeds as headlines and brief summaries linked to original documents. Automated republication permission and current terms have not been confirmed. Review before enabling; retain only permitted short metadata/excerpts and attribution.",
+      "last_checked": "2026-10-31",
+      "enabled": false,
+      "category": "Central bank"
+    },
+    {
+      "id": "nse-rss-catalog",
+      "name": "National Stock Exchange of India (NSE) RSS catalog",
+      "url": "https://www.nseindia.com/static/rss-feed",
+      "feed_url": "https://www.nseindia.com/static/rss-feed",
+      "terms_notes": "Official catalog documents RSS categories, but the exact feed endpoint should be resolved from its current link target. NSE website policy states site content is copyrighted and governed by terms. No automated reuse permission is confirmed; disabled pending endpoint and rights review.",
+      "last_checked": "2026-10-31",
+      "enabled": false,
+      "category": "Exchange"
+    },
+    {
+      "id": "bse-public-updates",
+      "name": "BSE Limited public updates",
+      "url": "https://www.bseindia.com/",
+      "feed_url": "",
+      "terms_notes": "No official feed/API endpoint with documented permitted automated use was verified for this initial registry. Do not scrape. Add an endpoint only after confirming official access method and reuse terms.",
+      "last_checked": "2026-10-31",
+      "enabled": false,
+      "category": "Exchange"
+    }
+  ]
+}
