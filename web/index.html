@@ -7,6 +7,7 @@
   <meta name="theme-color" content="#10130f">
   <title>TradeLab — Automation control room</title>
   <link rel="stylesheet" href="/styles.css">
+  <script src="/account.js" defer></script>
   <script src="/app.js" defer></script>
   <script src="/market.js" defer></script>
   <script src="/automation.js" defer></script>
@@ -43,7 +44,7 @@
         <div class="top-actions">
           <span class="live-indicator"><i></i> BROKER DATA</span>
           <button class="icon-button" id="refresh-button" title="Refresh data" aria-label="Refresh data">⟳</button>
-          <button class="account-button" id="account-button"><span class="avatar" id="avatar">—</span><span id="account-name">Local session</span><span class="chevron">⌄</span></button>
+          <button class="account-button" id="account-button" title="Disconnect Zerodha" aria-label="Disconnect Zerodha"><span class="avatar" id="avatar">—</span><span id="account-name">Local session</span><span class="chevron">⌄</span></button>
         </div>
       </header>
 
@@ -77,7 +78,7 @@
 </section>
 <section class="stat-grid" aria-label="Account summary">
           <article class="stat-card"><div class="stat-top"><span>HOLDINGS VALUE</span><span class="stat-icon">▤</span></div><div class="stat-value" id="holdings-value">—</div><div class="stat-note" id="holdings-note">Connect to load your account</div></article>
-          <article class="stat-card"><div class="stat-top"><span>DAY P&amp;L</span><span class="stat-icon">↗</span></div><div class="stat-value" id="day-pnl">—</div><div class="stat-note" id="pnl-note">From open positions</div></article>
+          <article class="stat-card"><div class="stat-top"><span>NET POSITION P&amp;L</span><span class="stat-icon">↗</span></div><div class="stat-value" id="day-pnl">—</div><div class="stat-note" id="pnl-note">Includes closed positions</div></article>
           <article class="stat-card"><div class="stat-top"><span>OPEN POSITIONS</span><span class="stat-icon">▥</span></div><div class="stat-value" id="position-count">—</div><div class="stat-note">Intraday and carry-forward</div></article>
           <article class="stat-card"><div class="stat-top"><span>TODAY'S ORDERS</span><span class="stat-icon">↗</span></div><div class="stat-value" id="orders-total">—</div><div class="stat-note" id="orders-note">Broker order book</div></article>
         </section>

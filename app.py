@@ -11,6 +11,7 @@ import math
 import os
 import secrets
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -52,6 +53,9 @@ MARKET = MarketData(API_KEY, DATA_ROOT)
 class KiteError(Exception):
     pass
 
+class KiteSessionExpired(KiteError):
+    pass
+
 
 def kite_request(path: str, token: str, *, method: str = "GET", form: dict[str, Any] | None = None) -> dict[str, Any]:
     data = urllib.parse.urlencode(form).encode("utf-8") if form is not None else None
@@ -73,6 +77,8 @@ def kite_request(path: str, token: str, *, method: str = "GET", form: dict[str, 
             message = payload.get("message") or payload.get("error_type") or "Broker request failed"
         except Exception:
             message = f"Broker request failed with HTTP {exc.code}"
+        if exc.code == 403:
+            raise KiteSessionExpired("Broker session expired. Reconnect Zerodha.") from None
         raise KiteError(message) from None
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
         raise KiteError(f"Could not reach Kite Connect: {type(exc).__name__}") from None
@@ -101,7 +107,10 @@ def validate_order(values: dict[str, Any]) -> dict[str, Any]:
     if transaction_type not in transaction_types or product not in products or order_type not in order_types or validity not in validity_types:
         raise ValueError("One or more order selections are invalid.")
     try:
-        quantity = int(values.get("quantity", 0))
+        raw_quantity = values.get("quantity", 0)
+        if isinstance(raw_quantity, bool) or not str(raw_quantity).isdigit():
+            raise ValueError("Quantity must be a positive whole number.")
+        quantity = int(raw_quantity)
     except (TypeError, ValueError):
         raise ValueError("Quantity must be a positive whole number.") from None
     if quantity < 1 or quantity > 1_000_000:
@@ -117,6 +126,8 @@ def validate_order(values: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("This order type requires a limit price greater than zero.")
     if order_type in {"SL", "SL-M"} and trigger_price <= 0:
         raise ValueError("Stop-loss orders require a trigger price greater than zero.")
+    if order_type == "SL" and ((transaction_type == "BUY" and price < trigger_price) or (transaction_type == "SELL" and price > trigger_price)):
+        raise ValueError("BUY stop-limit price must be at least the trigger; SELL limit must be at most the trigger.")
     order: dict[str, Any] = {
         "variety": "regular",
         "exchange": exchange,
@@ -219,7 +230,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             raise PermissionError("Connect your Zerodha account first.")
         return str(token)
 
+    def valid_host(self):
+        host=self.headers.get('Host','')
+        allowed={f'127.0.0.1:{self.server.server_port}',f'localhost:{self.server.server_port}',f'[::1]:{self.server.server_port}'}
+        if host not in allowed:
+            self.error(403,'Local host header required.'); return False
+        return True
+
     def do_GET(self) -> None:
+        if not self.valid_host(): return
         parsed = urllib.parse.urlparse(self.path)
         route = parsed.path
         if route == "/" or route == "/index.html":
@@ -231,7 +250,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if route == "/auth/kite/callback":
             self.kite_callback(urllib.parse.parse_qs(parsed.query))
             return
-        if route in {"/app.js", "/market.js", "/automation.js", "/styles.css"}:
+        if route in {"/app.js", "/market.js", "/automation.js", "/account.js", "/styles.css"}:
             file_name = route[1:]
             mime = "text/javascript; charset=utf-8" if file_name.endswith(".js") else "text/css; charset=utf-8"
             try:
@@ -284,6 +303,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.json_response(200, payload)
         except PermissionError as exc:
             self.error(401, str(exc))
+        except KiteSessionExpired as exc:
+            session.pop("access_token", None)
+            session.pop("profile", None)
+            self.error(401, str(exc))
         except KiteError as exc:
             self.error(502, str(exc))
         except ValueError as exc:
@@ -294,6 +317,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.error(502, 'Market request failed ('+type(exc).__name__+'). Check broker login and subscription.')
 
     def do_POST(self) -> None:
+        if not self.valid_host(): return
         route = urllib.parse.urlparse(self.path).path
         try:
             session_id, session = self.authenticated_session()
@@ -323,6 +347,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             session.pop("access_token", None)
             session.pop("profile", None)
             session.pop("oauth_state", None)
+            session.pop("reviews", None)
             self.json_response(200, {"ok": True})
         elif route.startswith('/api/market/'):
             try:
@@ -356,7 +381,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except ValueError as exc:
                 self.error(400, str(exc))
                 return
-            self.json_response(200, {"order": normalized, "live": True, "requiresConfirmation": True})
+            confirmation_id=secrets.token_urlsafe(24)
+            with LOCK:
+                reviews=session.setdefault('reviews',{})
+                reviews.clear()
+                reviews[confirmation_id]={'order':normalized,'created':time.monotonic()}
+            self.json_response(200, {"order": normalized, "confirmationId":confirmation_id, "live": LIVE_ORDERS_ENABLED, "requiresConfirmation": True})
         elif route == "/api/orders/place":
             self.place_order(session, values)
         else:
@@ -430,13 +460,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if confirmation_id in submitted:
                 self.error(409, "This confirmation was already submitted. Refresh the order book before creating another order.")
                 return
+            review=session.setdefault('reviews',{}).get(confirmation_id)
+            if not review or time.monotonic()-review['created']>120 or review['order']!=order:
+                self.error(409,'Order review expired or changed. Review the exact order again.'); return
+            if len(submitted)>=500:
+                self.error(409,'Session order limit reached. Check broker orders and reconnect.'); return
             submitted.add(confirmation_id)
-            if len(submitted) > 100:
-                session["submitted"] = set(list(submitted)[-50:])
+            session['reviews'].pop(confirmation_id,None)
         try:
             result = kite_request("/orders/regular", token, method="POST", form=order)
-        except KiteError as exc:
-            self.error(502, str(exc))
+        except KiteError:
+            self.error(502, "Submission outcome is uncertain. Do not retry until you check the Zerodha order book and trades. This review cannot be reused.")
             return
         order_id = result.get("data", {}).get("order_id")
         self.json_response(200, {"ok": True, "orderId": order_id, "message": "The broker accepted the order request. Check the order book for its current status."})

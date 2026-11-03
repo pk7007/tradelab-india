@@ -118,9 +118,11 @@ class Coordinator:
     def submit_mock(self,identity,broker):
         if getattr(broker,'mode',None)!='offline-mock':raise ValueError('Production submission is disabled.')
         with self.lock,self.db() as db:
-            if self.state!='running':raise ValueError('Not running.')
+            if self.state!='running' or not self.reconciled:raise ValueError('Not running or unreconciled.')
             row=db.execute('SELECT * FROM intents WHERE id=?',(identity,)).fetchone()
             if not row or row['state']!='PREPARED':raise ValueError('Intent not eligible for submission.')
+            latest=db.execute('SELECT MAX(version) FROM config').fetchone()[0]
+            if row['version']!=latest:raise ValueError('Intent belongs to an obsolete strategy version.')
             db.execute("UPDATE intents SET state='SUBMITTING',updated=? WHERE id=?",(now(),identity))
         try:
             broker_id=broker.submit(dict(row))
@@ -139,7 +141,7 @@ class Coordinator:
                 row=db.execute('SELECT * FROM intents WHERE id=?',(update['id'],)).fetchone()
                 if not row:external_mismatch=True;continue
                 state=update['state'];filled=update['filled']
-                if state not in (*TERMINAL,'OPEN','PARTIAL') or not isinstance(filled,int) or not row['filled']<=filled<=row['quantity']:raise ValueError('Invalid or regressive broker update.')
+                if state not in (*TERMINAL,'OPEN','PARTIAL') or type(filled) is not int or not row['filled']<=filled<=row['quantity']:raise ValueError('Invalid or regressive broker update.')
                 if state=='COMPLETE' and filled!=row['quantity']:raise ValueError('Incomplete fill cannot be complete.')
                 if row['state'] in TERMINAL and (state!=row['state'] or filled!=row['filled']):raise ValueError('Terminal state regression.')
                 db.execute('UPDATE intents SET state=?,filled=?,broker_id=?,updated=? WHERE id=?',(state,filled,update.get('broker_id',row['broker_id']),now(),row['id']))

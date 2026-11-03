@@ -1,6 +1,6 @@
 # Offline research test results
 
-Executed: 2026-11-01T07:01:45.006753+00:00
+Executed: 2026-11-03T13:04:06.108307+00:00
 Command: `.\.venv\Scripts\python.exe scripts/check_research.py`
 Fixtures: synthetic OHLCV, seeded synthetic paths, and in-memory mock job/order state only. No live account operations.
 Expected for each test: the named invariant holds under the fixtures and assertions in its linked test function.
@@ -30,6 +30,12 @@ Actual results below. Excluded/not-run integration scenarios are listed in [impl
 | demo deterministic and validates inputs | [StrategyTests](../tests/test_market_data.py) | All assertions passed | PASS |
 | no future signal executes on final bar | [StrategyTests](../tests/test_market_data.py) | All assertions passed | PASS |
 | signal executes on next open | [StrategyTests](../tests/test_market_data.py) | All assertions passed | PASS |
+| ambiguous submission cannot replay | [OrderTests](../tests/test_orders.py) | All assertions passed | PASS |
+| expired or changed review blocked | [OrderTests](../tests/test_orders.py) | All assertions passed | PASS |
+| fraction boolean and nonfinite quantity rejected | [OrderTests](../tests/test_orders.py) | All assertions passed | PASS |
+| host header rejects rebinding | [OrderTests](../tests/test_orders.py) | All assertions passed | PASS |
+| stop limit direction validated | [OrderTests](../tests/test_orders.py) | All assertions passed | PASS |
+| unreviewed order cannot submit | [OrderTests](../tests/test_orders.py) | All assertions passed | PASS |
 | bad prices and zero volume rejected | [RankingTests](../tests/test_research.py) | All assertions passed | PASS |
 | decline produces no candidate | [RankingTests](../tests/test_research.py) | All assertions passed | PASS |
 | duplicate and out of order rejected | [RankingTests](../tests/test_research.py) | All assertions passed | PASS |

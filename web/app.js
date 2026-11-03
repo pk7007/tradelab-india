@@ -32,17 +32,25 @@ function showNotice(message, isError = false) {
 async function api(path, options = {}) {
   const response = await fetch(path, {
     ...options,
+    signal: options.signal || AbortSignal.timeout(20000),
     headers: { ...(options.headers || {}), ...(options.method && options.method !== 'GET' ? { 'Content-Type':'application/json', 'X-CSRF-Token':csrf() } : {}) },
     cache: 'no-store',
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
+  if (!response.ok) {
+    if(response.status===401){connectState({connected:false,liveOrdersEnabled,credentialsConfigured:true,dataStorageEnabled:!$('#history-save').disabled});pendingOrder=null;$('#confirmation').hidden=true;}
+    throw new Error(payload.error || `Request failed (${response.status})`);
+  }
   return payload;
 }
 
 function connectState(status) {
   connected = status.connected;
   liveOrdersEnabled = status.liveOrdersEnabled;
+  if(!connected)resetAccount();
+  $('.live-indicator').textContent=connected?'BROKER SESSION CONNECTED':'BROKER DISCONNECTED';
+  $('#account-button').disabled=!connected;
+  $('#account-button').title=connected?'Disconnect Zerodha':'No broker session';
   $('#history-save').disabled = !status.dataStorageEnabled;
   if (status.dataStorageEnabled) $('#storage-note').textContent = 'CSV and provenance files save to Windows Local App Data / TradeLabIndia / market-data by default, outside this OneDrive workspace. Market data is excluded from Git.';
   $('#side-dot').classList.toggle('online', connected);
@@ -55,6 +63,7 @@ function connectState(status) {
   $('#order-lock').hidden = connected;
   $('#order-form').hidden = !connected;
   $('#risk-banner').classList.toggle('enabled', status.liveOrdersEnabled);
+  if (!status.liveOrdersEnabled) $('#risk-banner').innerHTML='<div><strong>Manual live orders are locked</strong><span>Order previews only. Automated execution is unavailable.</span></div>';
   if (status.liveOrdersEnabled) {
     $('#risk-banner').innerHTML = '<span class="risk-icon">!</span><div><strong>Manual live orders are enabled</strong><span>Orders you confirm here are sent to Zerodha. Check every detail before continuing.</span></div><span class="lock-tag">MANUAL ORDERS ON</span>';
     $('#place-order-button').textContent = 'Place live order ↗';
@@ -66,7 +75,7 @@ async function loadStatus() {
   const status = await api('/api/status');
   $('meta[name="csrf-token"]').content = status.csrf;
   connectState(status);
-  if (status.connected) await loadView(currentView);
+  await loadView(currentView);
 }
 
 function setView(view) {
@@ -86,40 +95,45 @@ function setView(view) {
   loadView(view).catch((error) => showNotice(error.message, true));
 }
 
+let accountRequest=0;
 async function loadView(view) {
+  const request=++accountRequest;
   if (['automation','market','research'].includes(view)) return;
-  if (!connected) return;
-  if (view === 'orders' || view === 'overview') {
-    const response = await api('/api/orders');
-    currentOrders = response.data || [];
-    $('#order-count').textContent = String(currentOrders.length);
-    $('#orders-total').textContent = String(currentOrders.length);
-    const active = currentOrders.filter((order) => ['OPEN','TRIGGER PENDING','PUT ORDER REQ RECEIVED','MODIFY VALIDATION PENDING'].includes(String(order.status).toUpperCase())).length;
-    $('#orders-note').textContent = `${active} pending · broker order book`;
+  if (!connected) { $('#table-title').textContent={overview:'Recent orders',orders:'All orders',holdings:'Holdings',positions:'Positions'}[view]; table([], '', 'Connect Zerodha to view this account screen'); return; }
+  $('#table-title').textContent='Loading '+view+'…';
+  $('#table-body').replaceChildren();
+  try {
+    const [orders,holdings,positions]=await Promise.all([api('/api/orders'),api('/api/holdings'),api('/api/positions')]);
+    if(request!==accountRequest||view!==currentView||!connected)return;
+    currentOrders=orders.data||[];
+    $('#order-count').textContent=String(currentOrders.length);
+    $('#orders-total').textContent=String(currentOrders.length);
+    $('#orders-note').textContent='Broker order book · refreshed '+new Date().toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata'})+' IST';
+    const rows=holdings.data||[];
+    $('#holdings-value').textContent=money(rows.reduce((n,x)=>n+Number(x.last_price||0)*Number(x.quantity||0),0));
+    $('#holdings-note').textContent=rows.length+' broker-reported holdings';
+    const summary=AccountMath.positions(positions.data);
+    $('#position-count').textContent=String(summary.open.length);
+    $('#day-pnl').textContent=signedMoney(summary.pnl);
+    $('#day-pnl').classList.toggle('positive',summary.pnl>=0);
+    $('#day-pnl').classList.toggle('negative',summary.pnl<0);
+    $('#pnl-note').textContent='Net position P&L, including closed positions; not account-wide daily P&L';
+    if(view==='holdings')renderHoldings(rows);
+    else if(view==='positions')renderPositions(summary.open);
+    else renderOrders(view==='overview'?currentOrders.slice(-6).reverse():currentOrders);
+  } catch(e) {
+    if(request!==accountRequest||view!==currentView)return;
+    resetAccount();
+    table([], '', 'Account data unavailable — reconnect or refresh');
+    throw e;
   }
-  if (view === 'holdings' || view === 'overview') {
-    const response = await api('/api/holdings');
-    const rows = response.data || [];
-    const value = rows.reduce((sum, row) => sum + Number(row.last_price || 0) * Number(row.quantity || 0), 0);
-    $('#holdings-value').textContent = money(value);
-    $('#holdings-note').textContent = `${rows.length} instrument${rows.length === 1 ? '' : 's'} · broker-reported holdings`;
-    if (view === 'holdings') renderHoldings(rows);
-  }
-  if (view === 'positions' || view === 'overview') {
-    const response = await api('/api/positions');
-    const positions = [...(response.data?.day || []), ...(response.data?.net || [])];
-    const uniquePositions = positions.filter((position, index, all) => all.findIndex((item) => item.exchange === position.exchange && item.tradingsymbol === position.tradingsymbol && item.product === position.product) === index);
-    const open = uniquePositions.filter((item) => Number(item.quantity || 0) !== 0);
-    const pnl = open.reduce((sum, item) => sum + Number(item.pnl || 0), 0);
-    $('#position-count').textContent = String(open.length);
-    $('#day-pnl').textContent = signedMoney(pnl);
-    $('#day-pnl').classList.toggle('positive', pnl >= 0);
-    $('#day-pnl').classList.toggle('negative', pnl < 0);
-    $('#pnl-note').textContent = 'Broker-reported P&L · positions';
-    if (view === 'positions') renderPositions(open);
-  }
-  if (view === 'orders') renderOrders(currentOrders);
-  if (view === 'overview') renderOrders(currentOrders.slice(-6).reverse());
+}
+function resetAccount(){
+  for(const id of ['holdings-value','day-pnl','position-count','orders-total','order-count'])$('#'+id).textContent='—';
+  currentOrders=[];
+  $('#holdings-note').textContent='No current account snapshot';
+  $('#pnl-note').textContent='No current account snapshot';
+  $('#orders-note').textContent='No current account snapshot';
 }
 
 function statusClass(value) {
@@ -132,7 +146,7 @@ function table(headers, rows, emptyTitle = 'Nothing to show yet') {
   const empty = $('#empty-state');
   const isEmpty = !rows;
   empty.hidden = !isEmpty;
-  if (isEmpty) empty.querySelector('strong').textContent = emptyTitle;
+  if (isEmpty) { empty.querySelector('strong').textContent = emptyTitle; empty.querySelector('p').textContent=connected?'No matching records returned by the broker.':'Use the official broker login to load your account.'; empty.querySelector('[data-connect]').hidden=connected; }
 }
 
 function renderOrders(orders) {
@@ -167,8 +181,8 @@ function orderValues() {
   return Object.fromEntries(new FormData($('#order-form')).entries());
 }
 
-function showReview(order) {
-  pendingOrder = order;
+function showReview(order, confirmationId) {
+  pendingOrder = {...order, confirmation_id:confirmationId};
   const fields = [
     ['Side', order.transaction_type], ['Instrument', `${order.exchange}:${order.tradingsymbol}`], ['Quantity', order.quantity],
     ['Product', order.product], ['Order type', order.order_type], ['Price', order.order_type === 'MARKET' ? 'Market price' : money(order.price)],
@@ -180,14 +194,14 @@ function showReview(order) {
   $('#confirm-field').hidden = !liveOrdersEnabled;
   $('#confirm-lock').hidden = liveOrdersEnabled;
   $('#confirm-text').value = '';
-  $('#place-order-button').disabled = !liveOrdersEnabled;
+  $('#place-order-button').disabled = true;
   $('#confirmation').scrollIntoView({ behavior:'smooth', block:'nearest' });
 }
 
 $('#connect-button').addEventListener('click', startConnect);
 document.querySelectorAll('[data-connect]').forEach((button) => button.addEventListener('click', startConnect));
 document.querySelectorAll('[data-view]').forEach((button) => button.addEventListener('click', () => setView(button.dataset.view)));
-$('#refresh-button').addEventListener('click', () => loadStatus().then(() => showToast('Account data refreshed.')).catch((error) => showNotice(error.message, true)));
+$('#refresh-button').addEventListener('click', async()=>{try{await loadStatus();if(currentView==='automation')await loadAutomation();showToast('Status refreshed.');}catch(e){showNotice(e.message,true);}});
 $('#order-type').addEventListener('change', (event) => {
   const type = event.target.value;
   $('#price-fields').hidden = type === 'MARKET';
@@ -199,12 +213,12 @@ $('#order-form').addEventListener('submit', async (event) => {
   $('#confirmation').hidden = true;
   try {
     const response = await api('/api/orders/preview', { method:'POST', body:JSON.stringify(orderValues()) });
-    showReview(response.order);
+    showReview(response.order,response.confirmationId);
   } catch (error) {
     showToast(error.message);
   }
 });
-$('#confirm-text').addEventListener('input', (event) => { $('#place-order-button').disabled = event.target.value !== 'PLACE LIVE ORDER'; });
+$('#confirm-text').addEventListener('input', (event) => { $('#place-order-button').disabled = !liveOrdersEnabled || !pendingOrder || event.target.value !== 'PLACE LIVE ORDER'; });
 $('#cancel-confirm').addEventListener('click', () => { pendingOrder = null; $('#confirmation').hidden = true; });
 $('#place-order-button').addEventListener('click', async () => {
   if (!pendingOrder || $('#confirm-text').value !== 'PLACE LIVE ORDER') return;
@@ -212,7 +226,7 @@ $('#place-order-button').addEventListener('click', async () => {
   button.disabled = true;
   button.textContent = 'Sending order…';
   try {
-    const response = await api('/api/orders/place', { method:'POST', body:JSON.stringify({ ...pendingOrder, confirm_text:$('#confirm-text').value, confirmation_id:crypto.randomUUID() }) });
+    const response = await api('/api/orders/place', { method:'POST', body:JSON.stringify({ ...pendingOrder, confirm_text:$('#confirm-text').value }) });
     showNotice(`${response.message} Order ID: ${response.orderId || 'see order book'}`);
     $('#confirmation').hidden = true;
     $('#order-form').reset();
@@ -220,7 +234,8 @@ $('#place-order-button').addEventListener('click', async () => {
     pendingOrder = null;
     await loadStatus();
   } catch (error) {
-    showNotice(error.message, true);
+    pendingOrder=null;$('#confirmation').hidden=true;
+    showNotice(error.message+' Check the broker order book before creating another order.', true);
   } finally {
     button.textContent = 'Place live order ↗';
     button.disabled = true;
@@ -240,7 +255,7 @@ $('#quote-button').addEventListener('click', async () => {
   }
 });
 
-const today = new Intl.DateTimeFormat('en-IN', { weekday:'long', day:'numeric', month:'long' }).format(new Date());
+const today = new Intl.DateTimeFormat('en-IN', { weekday:'long', day:'numeric', month:'long', timeZone:'Asia/Kolkata' }).format(new Date());
 $('#today-label').textContent = today.toUpperCase();
 const notice = new URLSearchParams(window.location.search).get('notice');
 if (notice === 'connected') showNotice('Zerodha account connected. Account data is loaded from Kite Connect.');
@@ -250,3 +265,6 @@ if (notice === 'login_state_error') showNotice('The sign-in session expired or c
 if (notice) window.history.replaceState({}, '', '/');
 setView('automation');
 loadStatus().catch((error) => showNotice(error.message, true));
+
+$('#order-form').addEventListener('input',e=>{if(e.target.id==='confirm-text')return;pendingOrder=null;$('#confirmation').hidden=true;$('#quote-result').hidden=true;});
+$('#account-button').addEventListener('click',async()=>{if(!connected)return;try{await api('/api/disconnect',{method:'POST',body:'{}'});pendingOrder=null;$('#confirmation').hidden=true;await loadStatus();showNotice('Disconnected from Zerodha.');}catch(e){showNotice(e.message,true);}});
