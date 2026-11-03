@@ -89,3 +89,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and the [com
 ## Research implementation
 
 Strategy lab now includes descriptive price rankings and a synthetic execution stress lab. See [research status, sources, and limitations](docs/research-implementation.md) and [test results](docs/research-test-results.md). These features are not validated trading recommendations or live automation.
+
+## Trader suite
+
+Open [Chart Scanner](http://127.0.0.1:8765/trader-scanner) for the eleven import-first workspaces. Includes setup heuristics, manual-source news and earnings/disclosure analysis, risk and sizing tools, 10,000-path scenario sampling, explicit paper-order approvals, and open-page alerts. See [feature contracts and limitations](docs/trader-suite.md). This is not a connected autonomous live bot; provider feeds and live automation remain incomplete.

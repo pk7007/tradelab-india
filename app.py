@@ -43,6 +43,7 @@ API_KEY = os.environ.get("KITE_API_KEY", "").strip()
 API_SECRET = os.environ.get("KITE_API_SECRET", "").strip()
 REDIRECT_URL = os.environ.get("KITE_REDIRECT_URL", "http://127.0.0.1:8765/auth/kite/callback").strip()
 LIVE_ORDERS_ENABLED = os.environ.get("TRADELAB_ENABLE_LIVE_ORDERS", "false").strip().lower() == "true"
+from trader_suite import TOOLS, dispatch
 from automation import Coordinator
 AUTOMATION = Coordinator(Path(os.environ.get("TRADELAB_AUTOMATION_DB", str(Path(os.environ.get("LOCALAPPDATA", str(ROOT / "data" / "private"))) / "TradeLabIndia" / "automation.sqlite"))))
 from market_data import MarketData, synthetic_research
@@ -203,7 +204,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", "0"))
         except ValueError:
             raise ValueError("Invalid request length.") from None
-        if length < 1 or length > 64_000:
+        if length < 1 or length > (8_000_000 if self.path.startswith("/api/trader/") else 64_000):
             raise ValueError("Request body is empty or too large.")
         try:
             value = json.loads(self.rfile.read(length).decode("utf-8"))
@@ -241,16 +242,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self.valid_host(): return
         parsed = urllib.parse.urlparse(self.path)
         route = parsed.path
-        if route == "/" or route == "/index.html":
+        if route == "/" or route == "/index.html" or route.removeprefix("/trader-") in TOOLS:
             session_id, session = self.session()
-            page = (WEB / "index.html").read_text(encoding="utf-8").replace("__CSRF_TOKEN__", session["csrf"])
+            page = (WEB / ("trader.html" if route.startswith("/trader-") else "index.html")).read_text(encoding="utf-8").replace("__CSRF_TOKEN__", session["csrf"])
             cookie = f"tradelab_session={session_id}; HttpOnly; SameSite=Lax; Path=/"
             self.send_bytes(200, page.encode(), "text/html; charset=utf-8", extra_headers=[("Set-Cookie", cookie)])
             return
         if route == "/auth/kite/callback":
             self.kite_callback(urllib.parse.parse_qs(parsed.query))
             return
-        if route in {"/app.js", "/market.js", "/automation.js", "/account.js", "/styles.css"}:
+        if route in {"/app.js", "/market.js", "/automation.js", "/account.js", "/trader.js", "/trader.css", "/styles.css"}:
             file_name = route[1:]
             mime = "text/javascript; charset=utf-8" if file_name.endswith(".js") else "text/css; charset=utf-8"
             try:
@@ -328,6 +329,35 @@ class Handler(http.server.BaseHTTPRequestHandler):
             values = self.body_json()
         except ValueError as exc:
             self.error(400, str(exc))
+            return
+        if route.startswith('/api/trader/'):
+            action=route.rsplit('/',1)[-1]
+            try:
+                if action=='approve':
+                    with LOCK:
+                        draft=session.get('paper_draft')
+                        if not draft or values.get('draftId')!=draft['id'] or time.monotonic()-draft['at']>120:
+                            raise ValueError('Paper draft expired or already consumed. Review again.')
+                        if values.get('confirm')!='APPROVE PAPER ORDER':raise ValueError('Explicit paper approval required.')
+                        book=session.setdefault('paper_book',[])
+                        if len(book)>=100:raise ValueError('Paper session limit reached.')
+                        total=sum(item.get('estimatedCapital',0) for item in book)
+                        if total+draft['baseExposure']+draft['pendingExposure']+draft['plan']['estimatedCapital']>draft['maxExposure']:
+                            raise ValueError('Paper book exposure changed; review the risk limits again.')
+                        record={'estimatedCapital':draft['plan']['estimatedCapital'],'id':draft['id'],'symbol':draft['symbol'],'quantity':draft['plan']['quantity'],
+                            'assumedEntry':draft['plan']['entry'],'status':'PAPER ONLY — hypothetical fill at user-entered entry; no broker order'}
+                        book.append(record);session.pop('paper_draft',None)
+                    self.json_response(200,{'paperOrder':record,'book':book});return
+                result=dispatch(action,values)
+                if action=='broker' and result['allowed']:
+                    symbol=str(values.get('symbol','')).strip().upper()
+                    if not symbol or len(symbol)>40:raise ValueError('Enter a trading symbol for paper review.')
+                    identity=secrets.token_urlsafe(24)
+                    with LOCK:session['paper_draft']={'id':identity,'at':time.monotonic(),'plan':result,'symbol':symbol,'baseExposure':float(values['exposure']),'pendingExposure':float(values['pendingExposure']),'maxExposure':float(values['maxExposure'])}
+                    result.update(draftId=identity,symbol=symbol,mode='PAPER ONLY',expiresInSeconds=120)
+                self.json_response(200,result)
+            except (ValueError,TypeError,KeyError,OverflowError) as exc:
+                self.error(400,str(exc))
             return
         if route.startswith('/api/automation/'):
             try:

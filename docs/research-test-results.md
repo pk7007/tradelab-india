@@ -1,6 +1,6 @@
 # Offline research test results
 
-Executed: 2026-11-03T13:04:06.108307+00:00
+Executed: 2026-11-03T17:07:39.395912+00:00
 Command: `.\.venv\Scripts\python.exe scripts/check_research.py`
 Fixtures: synthetic OHLCV, seeded synthetic paths, and in-memory mock job/order state only. No live account operations.
 Expected for each test: the named invariant holds under the fixtures and assertions in its linked test function.
@@ -52,6 +52,21 @@ Actual results below. Excluded/not-run integration scenarios are listed in [impl
 | restart disarms | [RiskContractTests](../tests/test_research.py) | All assertions passed | PASS |
 | stale unreconciled pending and daily loss gates | [RiskContractTests](../tests/test_research.py) | All assertions passed | PASS |
 | unknown acceptance blocks resubmit | [RiskContractTests](../tests/test_research.py) | All assertions passed | PASS |
+| explicit approval and no replay | [PaperApprovalTests](../tests/test_trader_suite.py) | All assertions passed | PASS |
+| scans two thousand synthetic symbols | [PaperApprovalTests](../tests/test_trader_suite.py) | All assertions passed | PASS |
+| budget bounds units by risk | [TraderSuiteTests](../tests/test_trader_suite.py) | All assertions passed | PASS |
+| costs reduce quantity | [TraderSuiteTests](../tests/test_trader_suite.py) | All assertions passed | PASS |
+| disclosure preserves owner and lag | [TraderSuiteTests](../tests/test_trader_suite.py) | All assertions passed | PASS |
+| earnings zero base has no percentage | [TraderSuiteTests](../tests/test_trader_suite.py) | All assertions passed | PASS |
+| future incomplete bar excluded | [TraderSuiteTests](../tests/test_trader_suite.py) | All assertions passed | PASS |
+| invalid long plan and nan rejected | [TraderSuiteTests](../tests/test_trader_suite.py) | All assertions passed | PASS |
+| news deduplicates and matches exact symbol | [TraderSuiteTests](../tests/test_trader_suite.py) | All assertions passed | PASS |
+| orb uses complete opening window | [TraderSuiteTests](../tests/test_trader_suite.py) | All assertions passed | PASS |
+| pending exposure and daily loss block | [TraderSuiteTests](../tests/test_trader_suite.py) | All assertions passed | PASS |
+| price alert boundary | [TraderSuiteTests](../tests/test_trader_suite.py) | All assertions passed | PASS |
+| scanner requires permission | [TraderSuiteTests](../tests/test_trader_suite.py) | All assertions passed | PASS |
+| time machine runs 10000 reproducibly | [TraderSuiteTests](../tests/test_trader_suite.py) | All assertions passed | PASS |
+| zero size cannot pass risk | [TraderSuiteTests](../tests/test_trader_suite.py) | All assertions passed | PASS |
 | costs reduce equity for same fills | [ExecutionTests](../tests/test_validation_lab.py) | All assertions passed | PASS |
 | delay defers first fill | [ExecutionTests](../tests/test_validation_lab.py) | All assertions passed | PASS |
 | gap stop fills below stop | [ExecutionTests](../tests/test_validation_lab.py) | All assertions passed | PASS |

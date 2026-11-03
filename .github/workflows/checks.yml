@@ -17,11 +17,12 @@ jobs:
           node-version: '22'
       - name: Syntax checks
         run: |
-          python -m py_compile app.py automation.py market_data.py research.py validation_lab.py scripts/weekly_digest.py
+          python -m py_compile app.py trader_suite.py automation.py market_data.py research.py validation_lab.py scripts/weekly_digest.py
           node --check web/account.js
           node --check web/app.js
           node --check web/market.js
           node --check web/automation.js
+          node --check web/trader.js
       - name: Account calculation regression tests
         run: node tests/account.test.js
       - name: Offline data and research tests
