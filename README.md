@@ -1,23 +1,63 @@
 # TradeLab India
 
-TradeLab India is a personal, local-first Indian market workspace. Its first broker connector is Zerodha Kite Connect. The app keeps the broker API secret and access token on the local server and requires a separate review before sending a live order.
+### An Indian-market research and trading workspace
 
-**Current stage: research and manual trading prototype. Automated live execution is not implemented; profitability is unproven.** The direction is a personal trading workstation that researches opportunities, tests strategies and manages execution under explicit user controls.
+TradeLab brings market data, strategy evaluation, risk planning and reviewed manual orders into a local browser application. Built with Python, JavaScript and Zerodha Kite Connect, it makes the assumptions behind a trading idea visible—from the data used to the costs and risks modeled.
 
-## Feature status
+**Status:** working research and manual-trading prototype. Automated live execution is planned; real-market profitability is unproven.
 
-| Area | Available today | Remaining boundary |
-| --- | --- | --- |
-| Zerodha workspace | Account, holdings, positions, order book and reviewed manual orders | Requires broker login; live orders disabled by default |
-| Market data | Live charts and historical viewing | Relevant Kite entitlement required; retention needs permission |
-| Chart scanner | Imported opening-range breakout, flag and bounce heuristics | Snapshot analysis; rules unvalidated |
-| Strategy evaluation | CSV/JSON import, fixed SMA(5/20), separate validation and holdout periods | One stock per run; modeled fills and costs |
-| Risk and sizing | Whole-share sizing, exposure limits and remaining daily loss checks | User-entered snapshots; stops cannot guarantee a maximum loss |
-| Paper orders | Explicit approval, single-use drafts and aggregate reserved risk | Hypothetical fills; session book lost on restart |
-| News and filings | Watchlist filtering, deduplication, availability cutoff and structured imports | Continuous feeds and automatic report extraction disconnected |
-| Automation | Strategy drafts, durable intent ledger and audit history | No automated live dispatch, cancellation or flattening |
+[Get started](#quick-start) · [Features](#features) · [Evaluation](#strategy-evaluation) · [Roadmap](#roadmap) · [Documentation](#documentation)
 
-## Recorded demonstration
+## Features
+
+- **Broker workspace:** Zerodha account overview, holdings, positions, order book and manual order review.
+- **Market research:** private live charts, historical candle viewing and imported chart-setup scanning.
+- **Reproducible evaluation:** CSV/JSON inputs, chronological validation, final holdout, matched buy-and-hold comparison and cost sensitivity.
+- **Risk planning:** whole-share position sizing, exposure limits, remaining daily loss checks and explicit paper-order approvals.
+- **Source-aware analysis:** imported watchlist news, publication/availability timestamps, deduplication and structured earnings comparisons.
+- **Automation foundation:** versioned strategy drafts, a SQLite intent ledger and audit history. Automated live dispatch is not connected.
+
+## Workflow
+
+**Research → Evaluate → Plan risk → Review an order**
+
+Inspect permitted data, test a rule against a benchmark, review its assumptions, and size a hypothetical position. Paper approval and manually reviewed broker orders are separate workflows. Forward paper execution is the next development stage.
+
+## Quick start
+
+Requires **Python 3.10+**. Node.js is used for JavaScript development checks.
+
+```powershell
+git clone https://github.com/pk7007/tradelab-india.git
+cd tradelab-india
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe app.py
+```
+
+Open **http://127.0.0.1:8765**. Keep the server terminal running. The synthetic demo and permitted-file evaluation work without a broker account.
+
+### Connect Zerodha (optional)
+
+1. Register `http://127.0.0.1:8765/auth/kite/callback` as your Kite Connect app's redirect URL.
+2. Copy `.env.example` to `.env` if it does not already exist, then enter your API key and secret locally.
+3. Restart TradeLab and select **Connect Zerodha**. Complete authentication on the broker's own page.
+
+Live manual orders are disabled by default. Their explicit configuration and market-data requirements are covered in the [setup guide](docs/market-data-setup.md). Enabling manual orders does not enable automated strategies.
+
+## Strategy evaluation
+
+Open **http://127.0.0.1:8765/trader-evaluate** and select **Run synthetic demo**, or import permitted candles for one stock.
+
+The fixed SMA(5/20) rule uses completed closes for next-open decisions. Two chronological validation windows precede a final holdout. Strategy and buy-and-hold use the same starting cash, whole shares, modeled fees and slippage. A second holdout run doubles fees and slippage.
+
+```powershell
+.\.venv\Scripts\python.exe evaluation.py --demo
+```
+
+See [evaluation inputs](docs/evaluation-data.md) for the CSV/JSON format and command-line import instructions.
+
+### Example results
 
 The [reproducible demo report](docs/evaluation-demo.json) uses **invented prices**, with 300 bars and a 60-bar final holdout. It does not represent Indian stock-market performance.
 
@@ -29,75 +69,6 @@ The [reproducible demo report](docs/evaluation-demo.json) uses **invented prices
 | Return with doubled fees and slippage | 0.47% | 2.01% |
 
 The strategy underperformed the benchmark in this fixture. Two trades do not establish a dependable advantage. Software tests verify behavior, not investment returns.
-
-## Evaluate a strategy
-
-With the local app running, open [Strategy evaluation](http://127.0.0.1:8765/trader-evaluate). Run the synthetic demo or supply a permitted, single-stock OHLCV file and your own assumptions. The fixed moving-average rule and buy-and-hold pay the same modeled costs. The report separates the two validation windows from the final holdout and repeats the holdout with doubled fees and slippage. This screen requires no broker login.
-
-Run the same deterministic demonstration offline: `python evaluation.py --demo`. For private data and the import format, see [evaluation inputs](docs/evaluation-data.md). The [recorded demo report](docs/evaluation-demo.json) contains only synthetic results.
-
-## Current automation status
-
-The redesigned control room includes versioned strategy drafts, explicit financial-limit fields, a durable SQLite intent ledger and an audit timeline. Automated live dispatch, cancellations and flattening remain unavailable. See [operator guide and exact implementation limits](docs/automation-operations.md). The UI does not claim that a saved strategy is approved or running.
-
-## Trading and risk disclosure
-
-Live order support is disabled by default. If explicitly enabled, orders are sent to the connected Zerodha account and can result in financial loss. Research signals and setup matches are unvalidated. The app is not investment advice, does not promise income, and does not claim that any strategy is profitable. No SEBI/NSE approval or compliance is claimed. Use the broker's own login page for authentication; never enter broker passwords, OTPs, or UPI PINs into this app.
-
-## Product direction
-
-- Zerodha account profile, holdings, positions, and order book through Kite Connect.
-- Manual order entry with a review step and explicit live-order confirmation.
-- Historical replay and simulation on permitted imports; historical market data is not bundled.
-- Historical NSE equity candle viewing, editable date ranges, progress reporting, and permission-gated local CSV storage.
-- A private live-price chart backed by Kite WebSockets; the browser refreshes its view once per second.
-- A synthetic strategy research example with explicit fees, slippage, and next-bar execution; no automated live strategy is configured.
-- A weekly digest of public-source updates that links to originals and avoids advice or copied articles.
-
-See [the product brief](docs/product-brief.md) and [the roadmap](docs/decision-log.md).
-
-## Project roles
-
-For a solo portfolio project, these are responsibilities, not claims of a staffed or certified team:
-
-| Responsibility | Focus |
-| --- | --- |
-| Product Manager | User problem, scope, priorities, research synthesis, success measures |
-| Product Designer | Journeys, prototypes, accessibility, interface clarity |
-| Backend Engineer | APIs, persistence, simulation orchestration, audit history |
-| Frontend Engineer | Replay and review workflows, responsive UI, accessible chart summaries |
-| Data Engineer | Licensed data ingestion, timestamps, quality checks, provenance |
-| Quant Researcher | Simulation assumptions, metric definitions, bias review; no profit guarantees |
-| QA/Reliability Engineer | Calculation correctness, failure states, reproducibility, monitoring |
-| Security Engineer | Threat model, secrets handling, access control, privacy |
-| Compliance Reviewer | Current applicable rules and product claims, reviewed with qualified expertise |
-
-## Local setup
-
-Requires Python 3.10 or newer and the pinned official Kite Connect SDK. Install it in the project environment:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-```
-
-1. Create a Zerodha Kite Connect app and register `http://127.0.0.1:8765/auth/kite/callback` as its redirect URL.
-2. Copy `.env.example` to `.env` and fill in your own API key and secret. Keep `.env` private; it is gitignored.
-3. Start the app with `.\.venv\Scripts\python.exe app.py` and open `http://127.0.0.1:8765`.
-4. Choose **Connect Zerodha**. Authentication happens on Zerodha; this app never asks for your broker password, TOTP, or PIN.
-5. Live order submission stays disabled unless you deliberately set `TRADELAB_ENABLE_LIVE_ORDERS=true` in `.env` and restart the app. Check Zerodha and current exchange/API requirements, including any static IP registration rules, before enabling it.
-
-The server binds to loopback (`127.0.0.1`) and keeps access tokens in memory only. This is a local single-user prototype, not safe to expose to the public internet or deploy for other users. Do not share your `.env` file or browser session.
-
-See [market-data setup](docs/market-data-setup.md) for historical viewing, live charts, data rights, local storage, and the synthetic strategy lab. Permanent market-data storage is locked until rights are confirmed; no broker data is published to GitHub.
-
-## Data provenance and licensing
-
-Do not commit licensed market data unless its terms explicitly permit redistribution. Record provider, instrument, interval, timezone, adjustment method, retrieval date, permitted use, and attribution for any future data. Treat public availability as distinct from permission to reuse. The source registry in `data/digest-sources.json` is an unapproved research inventory; all entries are disabled until their terms and endpoint behavior are reviewed.
-
-## Weekly public-source digest
-
-The planned GitHub Actions workflow is manually triggerable and has a weekly schedule gated by the repository variable `ENABLE_WEEKLY_DIGEST=true`. Manual runs require `confirm_sources_reviewed=true`. Keep both gates closed until the source list and repository are reviewed. GitHub schedule times use UTC: Monday 03:30 UTC is approximately Monday 09:00 India Standard Time (UTC+05:30). Scheduled events may be delayed by GitHub. The workflow writes `updates/YYYY-MM-DD.md` and refreshes `updates/README.md`; it does not publish to external services. It uses feed metadata only, short excerpts only where permitted, canonical-link deduplication, and visible failure reporting. It does not generate market advice, predictions, or trading signals.
 
 ## Roadmap
 
@@ -112,19 +83,6 @@ These milestones are planned capabilities, not shipped features or promised rele
 | 5. Unified control room | Research, news, positions, strategy health and alerts in one dashboard | Clear states, understandable explanations and tested workflows |
 
 **Next milestone:** trustworthy real-data evaluation and forward paper trading. Profitability is a question to measure, not a feature to promise. Identifying a weak strategy before risking money is a useful outcome.
-
-## Known limitations
-
-- No real market data is bundled. Permitted historical imports and replay are supported, but the recorded evaluation uses synthetic prices. Real-market profitability remains unproven.
-- Five-minute strategy evaluation may hold positions overnight; it is not a same-day square-off simulation. Liquidity, tax schedules and corporate actions require further validation.
-- Automated live strategies and forward paper execution remain unimplemented.
-- No interviews, usability findings, or competitor claims have been validated yet.
-- Digest sources and automated reuse permissions are pending review; the workflow is gated off by default.
-- This project is not a broker, investment adviser, exchange, or regulator-approved system.
-
-## Contributing and security
-
-See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and the [compliance review checklist](docs/compliance-review-needed.md). Do not add credentials, personal financial data, or private customer information.
 
 ## Development checks
 
@@ -151,12 +109,28 @@ Latest local verification: **80 Python tests passed on 5 November 2026**. The [c
 | `tests/` | Offline regression tests |
 | `docs/` | Setup, feature contracts, evidence and limitations |
 
-For source discovery, see [Indian news sources and reusable research prompt](docs/news-source-research.md).
+## Documentation
 
-## Research implementation
+| Guide | Contents |
+| --- | --- |
+| [Market-data setup](docs/market-data-setup.md) | Broker configuration, charts, historical jobs and data rights |
+| [Evaluation inputs](docs/evaluation-data.md) | Candle formats, timestamps, provenance and assumptions |
+| [Trader suite](docs/trader-suite.md) | Tool behavior and implementation boundaries |
+| [Automation operations](docs/automation-operations.md) | Current coordinator behavior and unavailable live operations |
+| [Research implementation](docs/research-implementation.md) | Research methods and remaining validation work |
+| [News sources](docs/news-source-research.md) | Indian-market source discovery and research prompt |
+| [Architecture](docs/architecture.md) | Application structure and design context |
 
-Strategy lab now includes descriptive price rankings and a synthetic execution stress lab. See [research status, sources, and limitations](docs/research-implementation.md) and [test results](docs/research-test-results.md). These features are not validated trading recommendations or live automation.
+## Safety and scope
 
-## Trader suite
+TradeLab is a local, single-user prototype. It binds to loopback and keeps broker access tokens in server memory; restarting clears login sessions. Do not expose it to the public internet.
 
-Open [Chart Scanner](http://127.0.0.1:8765/trader-scanner) for the eleven import-first workspaces. Includes setup heuristics, manual-source news and earnings/disclosure analysis, risk and sizing tools, 10,000-path scenario sampling, explicit paper-order approvals, and open-page alerts. See [feature contracts and limitations](docs/trader-suite.md). This is not a connected autonomous live bot; provider feeds and live automation remain incomplete.
+Keep credentials, account records and licensed market exports out of Git. No real market dataset is bundled. Imports require permission for the intended use; public accessibility does not imply redistribution rights.
+
+Historical simulations assume fills and costs. Liquidity, taxes, corporate actions, gaps and outages can materially change real outcomes. Five-minute evaluation may hold overnight and is not an intraday square-off simulation. News feeds and automatic filing ingestion remain disconnected; paper orders use hypothetical fills and a session-only book.
+
+This project does not promise returns or loss-free trading and makes no investment-adviser or regulatory-approval claim. Its tests verify software behavior, not profitability or production readiness.
+
+## Contributing
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before proposing changes. Include reproducible steps and appropriate tests for calculation or execution changes. Report security issues through the guidance in [SECURITY.md](SECURITY.md), and never include credentials or account data in an issue.
