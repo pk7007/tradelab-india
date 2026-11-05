@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en"><head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="csrf-token" content="__CSRF_TOKEN__">
+  <title>Strategy evaluation · TradeLab India</title>
+  <link rel="stylesheet" href="/trader.css"><link rel="stylesheet" href="/evaluation.css">
+  <script src="/evaluation.js" defer></script>
+</head><body>
+<aside><a class="brand" href="/">T · TradeLab</a><p>RESEARCH DESK</p>
+<nav aria-label="Research"><a href="/trader-scanner">Chart scanner</a><a href="/trader-news">News monitor</a>
+<a href="/trader-timemachine">Time machine</a><a href="/trader-evaluate" class="active" aria-current="page">Strategy evaluation</a><a href="/trader-risk">Risk manager</a></nav>
+<a href="/">← Trading workspace</a></aside>
+<main><header><span>TRADELAB INDIA / RESEARCH</span><strong>SIMULATION ONLY</strong></header>
+<section class="hero"><p id="tool-type">STRATEGY TEST</p><h1>Does the rule beat holding?</h1>
+<p>Test one stock against buying and holding the same stock. The rule holds shares when the five-bar average is above the twenty-bar average, and otherwise holds cash. Decisions use completed bars and fill at the next open. Positions can carry overnight.</p>
+<button class="primary" id="demo" type="button">Run synthetic demo</button> <span>Invented prices · no broker connection needed</span></section>
+<section class="panel" id="report" hidden aria-labelledby="report-title">
+  <p class="eyebrow" id="report-type"></p><h2 id="report-title">Evaluation results</h2><p id="period"></p>
+  <div class="table-wrap"><table><caption>Each window starts with the same cash and finishes flat. Returns include modeled fees and slippage.</caption>
+    <thead><tr><th scope="col">Window</th><th scope="col">Strategy</th><th scope="col">Buy &amp; hold</th><th scope="col">Difference</th><th scope="col">Strategy drawdown</th><th scope="col">Round trips</th></tr></thead><tbody id="windows"></tbody></table></div>
+  <p id="interpretation"></p>
+  <details><summary>Method, assumptions &amp; run details</summary><p id="method"></p><ul id="limits"></ul><pre id="payload"></pre></details>
+</section>
+<p id="message" role="status" aria-live="polite"></p>
+<section class="panel"><p class="eyebrow">YOUR DATA</p><h2>Evaluate a private candle file</h2>
+<p>Choose at least 100 bars for one symbol. Use timezone-aware timestamps in chronological order. A daily bar counts once its local date has ended. The file is processed by your local server in memory.</p>
+<form id="import-form">
+  <label>CSV or JSON file<input type="file" name="file" accept=".csv,.json,text/csv,application/json" required></label>
+  <details><summary>Accepted layouts</summary><p>CSV: date,open,high,low,close,volume (extra columns are ignored). JSON: an array of such records, or an object mapping one symbol to that array. Enter a symbol below for CSV and bare arrays. Use a zoned date such as 2025-01-02T09:15:00+05:30.</p></details>
+  <div class="fields">
+    <label>Symbol for CSV or bare arrays<input name="symbol" maxlength="64" placeholder="e.g. INFY"></label>
+    <label>Candle interval<select name="interval" required><option value="">Choose interval</option><option value="day">Daily</option><option value="5minute">5 minutes</option></select></label>
+    <label>Analysis cutoff, including timezone<input name="asOf" required placeholder="2026-01-01T00:00:00+05:30"></label>
+    <label>Simulated starting capital (₹)<input type="number" name="capital" min=".01" max="1000000000000" step="any" required></label>
+    <label>Fees &amp; taxes per side (basis points)<input type="number" name="costBps" min="0" max="500" step="any" required></label>
+    <label>Slippage per side (basis points)<input type="number" name="slippageBps" min="0" max="500" step="any" required></label>
+  </div><p>10 basis points = 0.10%. Use assumptions appropriate to the product and test dates.</p>
+  <label class="check"><input name="permitted" type="checkbox" required> I have permission to use this file for local strategy testing.</label>
+  <button id="run" class="primary">Evaluate file</button>
+</form></section>
+<footer>Strategy research · No order can be sent from this screen.</footer></main>
+</body></html>

@@ -68,8 +68,10 @@ def rank_universe(universe, horizon, interval, as_of):
             rows = rows[-21:]
             last = timestamp(rows[-1]['date'])
             if horizon=='intraday':
-                if cutoff-last>dt.timedelta(minutes=10):
+                if cutoff-last>=dt.timedelta(minutes=10):
                     raise ValueError('Stale intraday data.')
+                if any(timestamp(r['date']).minute%5 or timestamp(r['date']).second or timestamp(r['date']).microsecond for r in rows):
+                    raise ValueError('Use candles aligned to a five-minute session boundary.')
                 if any(timestamp(b['date'])-timestamp(a['date'])!=dt.timedelta(minutes=5) for a,b in zip(rows,rows[1:])):
                     raise ValueError('Missing five-minute candles.')
             elif cutoff-last>dt.timedelta(days=7):

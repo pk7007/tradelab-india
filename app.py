@@ -10,6 +10,7 @@ import json
 import math
 import os
 import secrets
+import socket
 import threading
 import time
 import urllib.error
@@ -242,16 +243,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self.valid_host(): return
         parsed = urllib.parse.urlparse(self.path)
         route = parsed.path
-        if route == "/" or route == "/index.html" or route.removeprefix("/trader-") in TOOLS:
+        if route in {"/", "/index.html", "/trader-evaluate"} or route.removeprefix("/trader-") in TOOLS:
             session_id, session = self.session()
-            page = (WEB / ("trader.html" if route.startswith("/trader-") else "index.html")).read_text(encoding="utf-8").replace("__CSRF_TOKEN__", session["csrf"])
+            template = "evaluation.html" if route == "/trader-evaluate" else ("trader.html" if route.startswith("/trader-") else "index.html")
+            page = (WEB / template).read_text(encoding="utf-8").replace("__CSRF_TOKEN__", session["csrf"])
             cookie = f"tradelab_session={session_id}; HttpOnly; SameSite=Lax; Path=/"
             self.send_bytes(200, page.encode(), "text/html; charset=utf-8", extra_headers=[("Set-Cookie", cookie)])
             return
         if route == "/auth/kite/callback":
             self.kite_callback(urllib.parse.parse_qs(parsed.query))
             return
-        if route in {"/app.js", "/market.js", "/automation.js", "/account.js", "/trader.js", "/trader.css", "/styles.css"}:
+        if route in {"/app.js", "/market.js", "/automation.js", "/account.js", "/trader.js", "/trader.css", "/evaluation.js", "/evaluation.css", "/styles.css"}:
             file_name = route[1:]
             mime = "text/javascript; charset=utf-8" if file_name.endswith(".js") else "text/css; charset=utf-8"
             try:
@@ -333,6 +335,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if route.startswith('/api/trader/'):
             action=route.rsplit('/',1)[-1]
             try:
+                if route == '/api/trader/evaluate':
+                    from evaluation import demo_request, evaluate
+                    if 'demo' in values and (len(values) != 1 or values['demo'] is not True):
+                        raise ValueError('The demo takes only {"demo": true}. Use the import form for other inputs.')
+                    report = evaluate(demo_request() if 'demo' in values else values)
+                    self.json_response(200, report); return
                 if action=='approve':
                     with LOCK:
                         draft=session.get('paper_draft')
@@ -344,16 +352,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         total=sum(item.get('estimatedCapital',0) for item in book)
                         if total+draft['baseExposure']+draft['pendingExposure']+draft['plan']['estimatedCapital']>draft['maxExposure']:
                             raise ValueError('Paper book exposure changed; review the risk limits again.')
-                        record={'estimatedCapital':draft['plan']['estimatedCapital'],'id':draft['id'],'symbol':draft['symbol'],'quantity':draft['plan']['quantity'],
+                        reserved_loss=sum(item['estimatedStopLoss'] for item in book)
+                        if reserved_loss+draft['dailyLoss']+draft['plan']['estimatedStopLoss']>draft['dailyLossLimit']:
+                            raise ValueError('Open paper plans exceed the remaining daily loss allowance.')
+                        record={'estimatedCapital':draft['plan']['estimatedCapital'],'estimatedStopLoss':draft['plan']['estimatedStopLoss'],'id':draft['id'],'symbol':draft['symbol'],'quantity':draft['plan']['quantity'],
                             'assumedEntry':draft['plan']['entry'],'status':'PAPER ONLY — hypothetical fill at user-entered entry; no broker order'}
                         book.append(record);session.pop('paper_draft',None)
                     self.json_response(200,{'paperOrder':record,'book':book});return
+                if action=='broker':
+                    with LOCK: session.pop('paper_draft',None)
                 result=dispatch(action,values)
                 if action=='broker' and result['allowed']:
                     symbol=str(values.get('symbol','')).strip().upper()
                     if not symbol or len(symbol)>40:raise ValueError('Enter a trading symbol for paper review.')
                     identity=secrets.token_urlsafe(24)
-                    with LOCK:session['paper_draft']={'id':identity,'at':time.monotonic(),'plan':result,'symbol':symbol,'baseExposure':float(values['exposure']),'pendingExposure':float(values['pendingExposure']),'maxExposure':float(values['maxExposure'])}
+                    with LOCK:
+                        booked=session.get('paper_book',[])
+                        if sum(p['estimatedStopLoss'] for p in booked)+float(values['dailyLoss'])+result['estimatedStopLoss']>float(values['dailyLossLimit']):
+                            raise ValueError('Open paper plans exceed the remaining daily loss allowance.')
+                        if sum(p['estimatedCapital'] for p in booked)+float(values['exposure'])+float(values['pendingExposure'])+result['estimatedCapital']>float(values['maxExposure']):
+                            raise ValueError('Open paper plans exceed the exposure limit.')
+                        session['paper_draft']={'id':identity,'at':time.monotonic(),'plan':result,'symbol':symbol,'baseExposure':float(values['exposure']),'pendingExposure':float(values['pendingExposure']),'maxExposure':float(values['maxExposure']),'dailyLoss':float(values['dailyLoss']),'dailyLossLimit':float(values['dailyLossLimit'])}
                     result.update(draftId=identity,symbol=symbol,mode='PAPER ONLY',expiresInSeconds=120)
                 self.json_response(200,result)
             except (ValueError,TypeError,KeyError,OverflowError) as exc:
@@ -506,6 +525,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.json_response(200, {"ok": True, "orderId": order_id, "message": "The broker accepted the order request. Check the order book for its current status."})
 
 
+class LocalServer(http.server.ThreadingHTTPServer):
+    # Windows SO_REUSEADDR can let a second TradeLab start on an occupied
+    # port, with requests split between processes holding different sessions.
+    allow_reuse_address = os.name != "nt"
+    allow_reuse_port = False
+
+    def server_bind(self):
+        if os.name == "nt":
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
 def serve() -> None:
     host = os.environ.get("APP_HOST", "127.0.0.1").strip()
     if host not in {"127.0.0.1", "localhost", "::1"}:
@@ -516,7 +547,10 @@ def serve() -> None:
         raise SystemExit("APP_PORT must be an integer.") from None
     if not 1024 <= port <= 65535:
         raise SystemExit("APP_PORT must be between 1024 and 65535.")
-    server = http.server.ThreadingHTTPServer((host, port), Handler)
+    try:
+        server = LocalServer((host, port), Handler)
+    except OSError as exc:
+        raise SystemExit(f"Could not bind TradeLab to {host}:{port}: {exc}") from None
     server.daemon_threads = True
     print(f"TradeLab is available at http://{host}:{port} (local machine only). Press Ctrl+C to stop.")
     try:

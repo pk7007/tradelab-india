@@ -17,7 +17,8 @@ jobs:
           node-version: '22'
       - name: Syntax checks
         run: |
-          python -m py_compile app.py trader_suite.py automation.py market_data.py research.py validation_lab.py scripts/weekly_digest.py
+          python -m py_compile app.py evaluation.py trader_suite.py automation.py market_data.py research.py validation_lab.py scripts/weekly_digest.py
+          node --check web/evaluation.js
           node --check web/account.js
           node --check web/app.js
           node --check web/market.js

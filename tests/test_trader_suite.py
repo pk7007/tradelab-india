@@ -32,7 +32,7 @@ class TraderSuiteTests(unittest.TestCase):
         a=time_machine(data);self.assertEqual(a['sessions'],10000);self.assertEqual(a,time_machine(data))
     def test_news_deduplicates_and_matches_exact_symbol(self):
         r=dict(title='Earnings',symbols=['INFY'],url='https://example.invalid/a',publishedAt='2026-10-01T00:00:00Z')
-        self.assertEqual(len(news(dict(records=[r,r],watchlist='INFY',permitted=True))['items']),1)
+        self.assertEqual(len(news(dict(records=[r,r],watchlist='INFY',asOf='2026-10-01T01:00:00Z',permitted=True))['items']),1)
         self.assertEqual(news(dict(records=[r],watchlist='IN',permitted=True))['items'],[])
     def test_earnings_zero_base_has_no_percentage(self):
         r=dict(metric='Revenue',unit='INR',period='Q2',priorPeriod='Q1',current=100,previous=0,source='https://example.invalid/r',publishedAt='2026-10-01T00:00:00Z')
@@ -43,6 +43,24 @@ class TraderSuiteTests(unittest.TestCase):
     def test_price_alert_boundary(self):self.assertTrue(dispatch('alerts',dict(price=100,threshold=100,direction='above'))['triggered'])
 
 class PaperApprovalTests(unittest.TestCase):
+    def test_open_paper_plans_cannot_spend_the_same_loss_allowance_twice(self):
+        import secrets,urllib.parse
+        from unittest.mock import Mock
+        from test_orders import Handler,namespace
+        namespace.update(dispatch=dispatch,secrets=secrets,urllib=urllib)
+        session={};h=object.__new__(Handler);h.valid_host=lambda:True
+        h.authenticated_session=lambda:('fixture',session)
+        h.error=Mock();h.json_response=Mock()
+        request=RISK|dict(symbol='DEMO',dailyLossLimit=150)
+        h.path='/api/trader/broker';h.body_json=lambda:request
+        h.do_POST();draft=h.json_response.call_args.args[1]['draftId']
+        h.path='/api/trader/approve';h.body_json=lambda:dict(draftId=draft,confirm='APPROVE PAPER ORDER')
+        h.do_POST()
+        self.assertEqual(session['paper_book'][0]['estimatedStopLoss'],100)
+        h.path='/api/trader/broker';h.body_json=lambda:request
+        h.do_POST()
+        self.assertIn('daily loss',h.error.call_args.args[1])
+        self.assertNotIn('paper_draft',session)
     def test_explicit_approval_and_no_replay(self):
         import secrets,urllib.parse
         from unittest.mock import Mock

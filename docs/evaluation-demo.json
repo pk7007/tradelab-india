@@ -1,0 +1,130 @@
+{
+  "protocol": "sma5-20-next-open-v1",
+  "symbol": "DEMO",
+  "source": "synthetic",
+  "asOf": "2024-02-24T00:00:00+05:30",
+  "interval": "day",
+  "capital": 100000.0,
+  "costBps": 10.0,
+  "slippageBps": 5.0,
+  "fingerprint": "e213ce7c7723f00b8c61851083d6090f0383a65defbac04f37aa56b61808f737",
+  "completedBars": 300,
+  "developmentBars": 180,
+  "validation": [
+    {
+      "start": "2023-09-11T00:00:00+05:30",
+      "end": "2023-10-20T00:00:00+05:30",
+      "bars": 30,
+      "strategy": {
+        "finalEquity": 97705.2296,
+        "returnPct": -2.29477,
+        "maxDrawdownPct": 2.29477,
+        "completedTrades": 1,
+        "winRatePct": 0.0,
+        "fees": 197.6766,
+        "slippage": 98.8378,
+        "exposurePct": 6.8966
+      },
+      "benchmark": {
+        "finalEquity": 91925.6591,
+        "returnPct": -8.074341,
+        "maxDrawdownPct": 8.133365,
+        "completedTrades": 1,
+        "winRatePct": 0.0,
+        "fees": 191.8912,
+        "slippage": 95.9437,
+        "exposurePct": 100.0
+      },
+      "excessReturnPct": 5.779571
+    },
+    {
+      "start": "2023-10-23T00:00:00+05:30",
+      "end": "2023-12-01T00:00:00+05:30",
+      "bars": 30,
+      "strategy": {
+        "finalEquity": 100000.0,
+        "returnPct": 0.0,
+        "maxDrawdownPct": 0.0,
+        "completedTrades": 0,
+        "winRatePct": null,
+        "fees": 0.0,
+        "slippage": 0.0,
+        "exposurePct": 0.0
+      },
+      "benchmark": {
+        "finalEquity": 93616.4076,
+        "returnPct": -6.383592,
+        "maxDrawdownPct": 6.383592,
+        "completedTrades": 1,
+        "winRatePct": 0.0,
+        "fees": 193.5655,
+        "slippage": 96.7812,
+        "exposurePct": 100.0
+      },
+      "excessReturnPct": 6.383592
+    }
+  ],
+  "holdout": {
+    "start": "2023-12-04T00:00:00+05:30",
+    "end": "2024-02-23T00:00:00+05:30",
+    "bars": 60,
+    "strategy": {
+      "finalEquity": 101079.0436,
+      "returnPct": 1.079044,
+      "maxDrawdownPct": 4.657313,
+      "completedTrades": 2,
+      "winRatePct": 50.0,
+      "fees": 407.7011,
+      "slippage": 203.851,
+      "exposurePct": 57.6271
+    },
+    "benchmark": {
+      "finalEquity": 102318.5767,
+      "returnPct": 2.318577,
+      "maxDrawdownPct": 5.746194,
+      "completedTrades": 1,
+      "winRatePct": 100.0,
+      "fees": 202.1763,
+      "slippage": 101.0888,
+      "exposurePct": 100.0
+    },
+    "excessReturnPct": -1.239533
+  },
+  "stressHoldout": {
+    "start": "2023-12-04T00:00:00+05:30",
+    "end": "2024-02-23T00:00:00+05:30",
+    "bars": 60,
+    "strategy": {
+      "finalEquity": 100474.7871,
+      "returnPct": 0.474787,
+      "maxDrawdownPct": 5.082127,
+      "completedTrades": 2,
+      "winRatePct": 50.0,
+      "fees": 812.3812,
+      "slippage": 406.1923,
+      "exposurePct": 57.6271
+    },
+    "benchmark": {
+      "finalEquity": 102013.262,
+      "returnPct": 2.013262,
+      "maxDrawdownPct": 5.842646,
+      "completedTrades": 1,
+      "winRatePct": 100.0,
+      "fees": 403.9382,
+      "slippage": 201.9717,
+      "exposurePct": 100.0
+    },
+    "excessReturnPct": -1.538475
+  },
+  "stressCostBps": 20.0,
+  "stressSlippageBps": 10.0,
+  "status": "synthetic demonstration",
+  "method": "Fixed long-only SMA(5/20). Previous completed closes determine the next-open fill. The first 60% supply price history. Two forward 10% windows precede the final 20% holdout. Each window starts in cash and exits at its last open. Buy-and-hold uses identical capital, whole shares, fees and slippage. Drawdown uses bar-close equity and final cash.",
+  "limitations": [
+    "Only one user-selected symbol and one fixed rule are evaluated. Reusing a holdout for tuning weakens the evidence.",
+    "The source label and import permissions are caller-supplied. Dates, exchange holidays, dividends and corporate actions are unverified.",
+    "All desired shares are assumed available at the modeled open. Liquidity, rejections, tax schedules and broker reconciliation are unverified.",
+    "Positions may carry overnight, including on five-minute data. Intrabar drawdowns may exceed the reported drawdown.",
+    "Historical and synthetic outcomes cannot establish future profits."
+  ]
+}

@@ -16,17 +16,34 @@ const meta=catalog[tool]||catalog.scanner;
 $('#tool-title').textContent=meta[0];document.title=meta[0]+' · TradeLab';$('#tool-description').textContent=meta[1];$('#tool-limit').textContent=meta[2];$('#tool-type').textContent='IMPORT-FIRST WORKSPACE / '+tool.toUpperCase();
 for(const [key,value] of Object.entries(catalog)){const a=document.createElement('a');a.href='/trader-'+key;a.textContent=value[0];a.className=key===tool?'active':'';if(key===tool)a.setAttribute('aria-current','page');$('#tools').append(a);}
 const priceTools=['exit','budget','risk','broker','timemachine'];
+const evaluationLink=document.createElement('a');
+evaluationLink.href='/trader-evaluate';evaluationLink.textContent='Strategy evaluation';$('#tools').append(evaluationLink);
+if(tool==='news'){
+  const sources=document.createElement('p');
+  sources.append('Research links: ');
+  for(const [name,url] of [
+    ['NSE filings','https://www.nseindia.com/companies-listing/corporate-filings-announcements'],
+    ['Moneycontrol','https://www.moneycontrol.com/news/business/markets/'],
+    ['ET Markets','https://economictimes.indiatimes.com/markets'],
+    ['Business Standard','https://www.business-standard.com/markets']
+  ]){
+    const link=document.createElement('a');link.textContent=name;link.href=url;link.target='_blank';link.rel='noopener noreferrer';sources.append(link,' · ');
+  }
+  sources.append('For manual research. No publisher feed is connected.');$('#tool-limit').after(sources);
+}
 const fields=[];
 if(['scanner','entry','timemachine'].includes(tool))fields.push(['asOf','Analysis cutoff · ISO timestamp','text']);
 if(priceTools.includes(tool))fields.push(['entry','Entry price','number'],['stop','Stop price','number'],['target','Target price','number'],['budget','Allocated budget','number'],['maxLoss','Maximum modeled loss per trade','number'],['costBps','Costs per side · basis points','number'],['slippageBps','Slippage per side · basis points','number']);
 if(['risk','broker'].includes(tool))fields.push(['exposure','Existing exposure','number'],['pendingExposure','Pending exposure','number'],['maxExposure','Maximum total exposure','number'],['dailyLoss','Loss incurred today','number'],['dailyLossLimit','Daily loss threshold','number']);
 if(tool==='broker')fields.unshift(['symbol','Trading symbol','text']);
 if(tool==='news')fields.push(['watchlist','Watchlist · exact symbols, comma separated','text']);
+if(tool==='news')fields.push(['asOf','Show news available by · ISO timestamp','text']);
 if(tool==='timemachine')fields.push(['horizon','Horizon · 1–100 bars','number']);
 if(tool==='alerts')fields.push(['price','Observed price for manual check','number'],['threshold','Alert threshold','number']);
 for(const [key,label,type] of fields){const l=document.createElement('label');l.textContent=label;const input=document.createElement('input');input.name=key;input.type=type;input.required=true;if(type==='number'){input.step='any';input.min='0';}l.append(input);$('#tool-fields').append(l);}
 if(tool==='alerts'){$('#tool-fields').insertAdjacentHTML('beforeend','<label>Trigger direction<select name="direction"><option value="above">At or above</option><option value="below">At or below</option></select></label>');$('#alert-controls').hidden=false;}
 const imported=['scanner','entry','timemachine','news','analyst','pelosi'].includes(tool);$('#import-panel').hidden=!imported;
+if(tool==='news')$('#tool-form').elements.asOf.value=new Date().toISOString();
 let sample=false,draft=null,watchTimer=null,watchBusy=false,triggered=false;
 async function api(path,body){const response=await fetch(path,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json','X-CSRF-Token':$('meta[name="csrf-token"]').content}:{},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(30000)});const result=await response.json();if(!response.ok)throw Error(result.error||'Request failed');return result;}
 function inputs(){const data=Object.fromEntries(new FormData($('#tool-form')));if(imported){const parsed=JSON.parse($('#records').value);if(['scanner','entry','timemachine'].includes(tool))data.candles=parsed;else data.records=parsed;data.permitted=$('#permitted').checked;}return data;}
@@ -39,7 +56,7 @@ $('#import-file').addEventListener('change',async e=>{const file=e.target.files[
 $('#sample').addEventListener('click',()=>{
   let example;
   if(['scanner','entry','timemachine'].includes(tool)){let price=100;const rows=[];const start=Date.parse('2026-10-01T09:15:00+05:30');for(let i=0;i<60;i++){const open=price;price*=1+(i%9<5?.004:-.003);rows.push({date:new Date(start+i*300000).toISOString(),open,high:Math.max(open,price)*1.001,low:Math.min(open,price)*.999,close:price,volume:10000});}example={SYNTHETIC:rows};$('#tool-form').elements.asOf.value='2026-10-01T15:30:00+05:30';}
-  else if(tool==='news'){example=[{title:'Synthetic earnings announcement',symbols:['DEMO'],publishedAt:'2026-10-01T10:00:00+05:30',url:'https://example.invalid/synthetic-news'}];$('#tool-form').elements.watchlist.value='DEMO';}
+  else if(tool==='news'){example=[{title:'Synthetic earnings announcement',symbols:['DEMO'],publishedAt:'2026-10-01T10:00:00+05:30',url:'https://example.invalid/synthetic-news'}];$('#tool-form').elements.watchlist.value='DEMO';$('#tool-form').elements.asOf.value='2026-10-01T10:01:00+05:30';}
   else if(tool==='analyst')example=[{metric:'Synthetic revenue',unit:'INR million',period:'Synthetic Q2',priorPeriod:'Synthetic prior Q2',current:110,previous:100,source:'https://example.invalid/synthetic-report',publishedAt:'2026-10-01T10:00:00+05:30'}];
   else example=[{filingId:'SYNTHETIC-1',filer:'Synthetic Member',owner:'Self',asset:'Synthetic asset',transactionDate:'2026-09-01',filedAt:'2026-10-01T10:00:00-04:00',amountRange:'Synthetic range only',source:'https://example.invalid/synthetic-disclosure'}];
   $('#records').value=JSON.stringify(example,null,2);sample=true;$('#permitted').checked=true;invalidate();$('#source-label').textContent='SYNTHETIC EXAMPLE — invented fixtures, no real stocks, reports or disclosures.';

@@ -36,7 +36,9 @@ ORB uses a close crossing the high of 09:15/09:20/09:25 candles. Bull flag is a 
 
 Time Machine samples imported close-to-close returns independently, seed 42, checking stop/target thresholds on sampled closes. Its percentiles and loss fraction describe the sampled distribution, not calibrated future probabilities. Historical matches enter at next open and report fixed-horizon gross returns. They do not simulate protective-order execution. No claim is made that all historical occurrences are present outside the supplied corpus.
 
-Paper approval is not live authorization. Approval expires after 120 seconds and a draft is consumed once. Aggregate session-paper exposure is rechecked at approval. No paper record is a broker receipt. Existing live manual order entry remains separate and uses its own confirmation.
+Paper approval is not live authorization. Approval expires after 120 seconds and a draft is consumed once. Exposure and estimated stop losses from previously approved session-paper plans are reserved during review and checked again at approval. They remain reserved for this session; this book does not simulate protective exits. No paper record is a broker receipt. Existing live manual order entry remains separate and uses its own confirmation.
+
+The [strategy evaluation screen](http://127.0.0.1:8765/trader-evaluate) compares a fixed rule and a cost-matched passive benchmark on separate periods. See [input requirements](evaluation-data.md). The [news research guide](news-source-research.md) lists linked sources and a reusable prompt. News imports can specify `availableAt` to avoid showing an item before the provider first made it available.
 
 ## Sources and testing
 

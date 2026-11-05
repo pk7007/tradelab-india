@@ -7,8 +7,8 @@ from research import experiment_record
 def simulate(bars, *, capital, units, fee_bps, slippage_bps, participation, stop_pct, delay=1):
     """Explicit synthetic assumptions, fixed-unit long-only SMA(5/20).
 
-    Next-open execution; gap stops use opening price. Intrabar stop liquidity
-    uses full bar volume, an optimistic limitation. No queue/market impact model.
+    Scheduled fills occur at the open, followed by intrabar stop checks. Opening
+    fills and stop fills share a full-bar volume cap, an optimistic assumption.
     """
     nums=(capital,units,fee_bps,slippage_bps,participation,stop_pct)
     if not all(math.isfinite(x) for x in nums) or capital<=0 or units<1 or int(units)!=units or not 0<=fee_bps<=100 or not 0<=slippage_bps<=100 or not 0<participation<=1 or not 0<stop_pct<1 or not isinstance(delay,int) or delay<1:
@@ -21,45 +21,52 @@ def simulate(bars, *, capital, units, fee_bps, slippage_bps, participation, stop
         if not all(math.isfinite(x) for x in (o,h,l,c,v)) or min(o,h,l,c)<=0 or v<0 or l>min(o,c) or h<max(o,c):
             raise ValueError('Invalid synthetic bar.')
         capacity=int(v*participation) if not b.get('halted') else 0
-        side=None; raw=o; requested=0; reason='signal'
-        if quantity and l<=entry*(1-stop_pct):
-            side='sell'; raw=min(o,entry*(1-stop_pct)); requested=quantity; reason='stop'; pending=None
-        elif pending and pending['at']<=i:
-            side=pending['side']; requested=pending['remaining']
-        if side:
-            if b.get('reject'):
-                rejected+=1; pending=None
+        held_this_bar=quantity>0
+        for phase in ('open','intrabar'):
+            stop_price=entry*(1-stop_pct)
+            observed=o if phase=='open' else l
+            if quantity and observed<=stop_price:
+                side='sell'; raw=min(o,stop_price); requested=quantity; reason='stop'
+            elif phase=='open' and pending and pending['at']<=i:
+                side=pending['side']; raw=o; requested=pending['remaining']; reason=pending.get('reason','signal')
             else:
-                fill=raw*(1+slippage_bps/10000 if side=='buy' else 1-slippage_bps/10000)
-                count=min(requested,capacity)
-                if side=='buy': count=min(count,int(cash/(fill*(1+fee_bps/10000))))
-                else: count=min(count,quantity)
-                if count:
-                    fee=count*fill*fee_bps/10000
-                    fees+=fee; turnover+=count*fill
-                    if side=='buy':
-                        entry=(entry*quantity+fill*count)/(quantity+count)
-                        cash-=count*fill+fee; quantity+=count; basis+=count*fill+fee
-                    else:
-                        allocated=basis*count/quantity
-                        pnl=count*fill-fee-allocated
-                        realized+=pnl; basis-=allocated; cash+=count*fill-fee; quantity-=count
-                        if quantity==0: round_trips.append(realized); realized=0; basis=0; entry=0
-                    fills.append({'bar':i,'side':side,'quantity':count,'price':fill,'fee':fee,'reason':reason})
-                remaining=requested-count
-                pending={'at':i+1,'side':side,'remaining':remaining} if remaining else None
+                continue
+            if b.get('reject'):
+                rejected+=1
+                pending={'at':i+1,'side':side,'remaining':requested,'reason':reason} if reason=='stop' else None
+                break
+            fill=raw*(1+slippage_bps/10000 if side=='buy' else 1-slippage_bps/10000)
+            count=min(requested,capacity)
+            if side=='buy': count=min(count,int(cash/(fill*(1+fee_bps/10000))))
+            else: count=min(count,quantity)
+            if count:
+                capacity-=count
+                fee=count*fill*fee_bps/10000
+                fees+=fee; turnover+=count*fill
+                if side=='buy':
+                    entry=(entry*quantity+fill*count)/(quantity+count)
+                    cash-=count*fill+fee; quantity+=count; basis+=count*fill+fee
+                    held_this_bar=True
+                else:
+                    allocated=basis*count/quantity
+                    pnl=count*fill-fee-allocated
+                    realized+=pnl; basis-=allocated; cash+=count*fill-fee; quantity-=count
+                    if quantity==0: round_trips.append(realized); realized=0; basis=0; entry=0
+                fills.append({'bar':i,'side':side,'quantity':count,'price':fill,'fee':fee,'reason':reason})
+            remaining=requested-count
+            pending={'at':i+1,'side':side,'remaining':remaining,'reason':reason} if remaining else None
         value=cash+quantity*c
         if cash<-1e-7 or quantity<0: raise AssertionError('Portfolio accounting failed.')
         peak=max(peak,value); max_dd=max(max_dd,1-value/peak)
         underwater=underwater+1 if value<peak-1e-8 else 0
         longest_underwater=max(longest_underwater,underwater)
-        active+=int(quantity>0); equity.append(value)
+        active+=int(held_this_bar); equity.append(value)
         if i>=19 and pending is None:
             recent=[float(x['close']) for x in bars[i-19:i+1]]
             positive=sum(recent[-5:])/5>sum(recent)/20
             if positive and quantity==0: pending={'at':i+delay,'side':'buy','remaining':units}
             elif not positive and quantity>0: pending={'at':i+delay,'side':'sell','remaining':quantity}
-    wins=[p for p in round_trips if p>0]; losses=[p for p in round_trips if p<=0]
+    wins=[p for p in round_trips if p>0]; losses=[p for p in round_trips if p<0]
     changes=[b/a-1 for a,b in zip([capital]+equity[:-1],equity)]
     return {'finalEquity':equity[-1],'cash':cash,'openQuantity':quantity,
             'returnPct':100*(equity[-1]/capital-1),'maxDrawdownPct':100*max_dd,
