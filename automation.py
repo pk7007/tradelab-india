@@ -141,7 +141,18 @@ class Coordinator:
                 row=db.execute('SELECT * FROM intents WHERE id=?',(update['id'],)).fetchone()
                 if not row:external_mismatch=True;continue
                 state=update['state'];filled=update['filled']
+                if row['broker_id'] and update.get('broker_id',row['broker_id']) != row['broker_id']:
+                    external_mismatch=True
+                    if row['state'] not in TERMINAL:
+                        db.execute("UPDATE intents SET state='UNKNOWN',updated=? WHERE id=?", (now(),row['id']))
+                    self.event(db,'reconciliation-id-mismatch',row['id'])
+                    continue
+                if row['state']=='UNKNOWN' and not update.get('broker_id'):
+                    external_mismatch=True
+                    continue
                 if state not in (*TERMINAL,'OPEN','PARTIAL') or type(filled) is not int or not row['filled']<=filled<=row['quantity']:raise ValueError('Invalid or regressive broker update.')
+                if (state=='PARTIAL' and not 0<filled<row['quantity']) or (state in ('OPEN','REJECTED') and filled):
+                    raise ValueError('Fill quantity conflicts with order state.')
                 if state=='COMPLETE' and filled!=row['quantity']:raise ValueError('Incomplete fill cannot be complete.')
                 if row['state'] in TERMINAL and (state!=row['state'] or filled!=row['filled']):raise ValueError('Terminal state regression.')
                 db.execute('UPDATE intents SET state=?,filled=?,broker_id=?,updated=? WHERE id=?',(state,filled,update.get('broker_id',row['broker_id']),now(),row['id']))

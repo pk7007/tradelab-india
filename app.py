@@ -45,6 +45,8 @@ API_SECRET = os.environ.get("KITE_API_SECRET", "").strip()
 REDIRECT_URL = os.environ.get("KITE_REDIRECT_URL", "http://127.0.0.1:8765/auth/kite/callback").strip()
 LIVE_ORDERS_ENABLED = os.environ.get("TRADELAB_ENABLE_LIVE_ORDERS", "false").strip().lower() == "true"
 from trader_suite import TOOLS, dispatch
+from paper import PaperEngine
+PAPER = PaperEngine(Path(os.environ.get('TRADELAB_PAPER_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'paper.sqlite'))))
 from automation import Coordinator
 AUTOMATION = Coordinator(Path(os.environ.get("TRADELAB_AUTOMATION_DB", str(Path(os.environ.get("LOCALAPPDATA", str(ROOT / "data" / "private"))) / "TradeLabIndia" / "automation.sqlite"))))
 from market_data import MarketData, synthetic_research
@@ -243,9 +245,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self.valid_host(): return
         parsed = urllib.parse.urlparse(self.path)
         route = parsed.path
-        if route in {"/", "/index.html", "/trader-evaluate"} or route.removeprefix("/trader-") in TOOLS:
+        if route in {"/", "/index.html", "/trader-evaluate", "/trader-paper"} or route.removeprefix("/trader-") in TOOLS:
             session_id, session = self.session()
             template = "evaluation.html" if route == "/trader-evaluate" else ("trader.html" if route.startswith("/trader-") else "index.html")
+            if route == '/trader-paper': template = 'paper.html'
             page = (WEB / template).read_text(encoding="utf-8").replace("__CSRF_TOKEN__", session["csrf"])
             cookie = f"tradelab_session={session_id}; HttpOnly; SameSite=Lax; Path=/"
             self.send_bytes(200, page.encode(), "text/html; charset=utf-8", extra_headers=[("Set-Cookie", cookie)])
@@ -253,7 +256,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if route == "/auth/kite/callback":
             self.kite_callback(urllib.parse.parse_qs(parsed.query))
             return
-        if route in {"/app.js", "/market.js", "/automation.js", "/account.js", "/trader.js", "/trader.css", "/evaluation.js", "/evaluation.css", "/styles.css"}:
+        if route in {"/app.js", "/market.js", "/automation.js", "/account.js", "/trader.js", "/trader.css", "/evaluation.js", "/evaluation.css", "/paper.js", "/styles.css"}:
             file_name = route[1:]
             mime = "text/javascript; charset=utf-8" if file_name.endswith(".js") else "text/css; charset=utf-8"
             try:
@@ -335,6 +338,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if route.startswith('/api/trader/'):
             action=route.rsplit('/',1)[-1]
             try:
+                if action.startswith('paper-'):
+                    if action=='paper-state': result=PAPER.status()
+                    elif action=='paper-reconcile': result=PAPER.reconcile(values.get('id'))
+                    elif action=='paper-fixture-connect': result=PAPER.fixture_link(values.get('id'),True)
+                    elif action=='paper-fixture-disconnect': result=PAPER.fixture_link(values.get('id'),False)
+                    elif action=='paper-fixture-bars': result=PAPER.fixture_batch(values.get('id'),values.get('instrument'),values.get('bars'),values.get('permitted'))
+                    elif action=='paper-create': result=PAPER.create(values)
+                    elif action=='paper-control': result=PAPER.control(values.get('id'),values.get('action'))
+                    elif action=='paper-bars': result=PAPER.ingest(values.get('id'),values.get('bars'),values.get('permitted'))
+                    else: raise ValueError('Unknown paper action.')
+                    self.json_response(200,result); return
                 if route == '/api/trader/evaluate':
                     from evaluation import demo_request, evaluate
                     if 'demo' in values and (len(values) != 1 or values['demo'] is not True):
@@ -434,7 +448,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             with LOCK:
                 reviews=session.setdefault('reviews',{})
                 reviews.clear()
-                reviews[confirmation_id]={'order':normalized,'created':time.monotonic()}
+                login = session.get('access_token') or ''
+                reviews[confirmation_id]={'order':normalized,'created':time.monotonic(),
+                                          'loginDigest':hashlib.sha256(login.encode()).digest()}
             self.json_response(200, {"order": normalized, "confirmationId":confirmation_id, "live": LIVE_ORDERS_ENABLED, "requiresConfirmation": True})
         elif route == "/api/orders/place":
             self.place_order(session, values)
@@ -510,7 +526,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.error(409, "This confirmation was already submitted. Refresh the order book before creating another order.")
                 return
             review=session.setdefault('reviews',{}).get(confirmation_id)
-            if not review or time.monotonic()-review['created']>120 or review['order']!=order:
+            if (not review or time.monotonic()-review['created']>120 or review['order']!=order
+                    or session.get('access_token') != token
+                    or review.get('loginDigest') != hashlib.sha256(token.encode()).digest()):
                 self.error(409,'Order review expired or changed. Review the exact order again.'); return
             if len(submitted)>=500:
                 self.error(409,'Session order limit reached. Check broker orders and reconnect.'); return
@@ -521,7 +539,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except KiteError:
             self.error(502, "Submission outcome is uncertain. Do not retry until you check the Zerodha order book and trades. This review cannot be reused.")
             return
-        order_id = result.get("data", {}).get("order_id")
+        response_data = result.get("data")
+        order_id = response_data.get("order_id") if isinstance(response_data, dict) else None
+        if not isinstance(order_id, str) or not order_id.strip():
+            self.error(502, "Broker acknowledgement has no order ID. Outcome unknown. Check the order book and trades before submitting again.")
+            return
         self.json_response(200, {"ok": True, "orderId": order_id, "message": "The broker accepted the order request. Check the order book for its current status."})
 
 

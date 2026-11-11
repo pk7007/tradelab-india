@@ -228,10 +228,15 @@ class MarketData:
                     if tick['instrument_token']!=instrument['instrument_token']: continue
                     received=dt.datetime.now(dt.timezone.utc).isoformat()
                     stamp=tick.get('exchange_timestamp')
+                    trade_stamp=tick.get('last_trade_time')
                     # Kite SDK returns exchange timestamps as naive local datetimes on some versions.
                     self.stream_state['points'].append({'date':received,'close':tick['last_price']})
                     self.stream_state['points']=self.stream_state['points'][-1000:]
-                    self.stream_state.update(lastTick=received,exchangeTimestamp=stamp.isoformat() if stamp else None,state='connected')
+                    # The SDK uses datetime.fromtimestamp for these epoch fields (local wall time).
+                    self.stream_state.update(lastTick=received,
+                        exchangeTimestamp=stamp.astimezone(dt.timezone.utc).isoformat() if stamp else None,
+                        tradeTimestamp=trade_stamp.astimezone(dt.timezone.utc).isoformat() if trade_stamp else None,
+                        state='connected')
         ticker.on_connect=on_connect
         ticker.on_ticks=on_ticks
         ticker.on_close=lambda ws,code,reason:state('disconnected')
@@ -246,7 +251,11 @@ class MarketData:
             if self.stream_owner != owner:
                 return {'state':'stopped','points':[],'lastTick':None}
             self.stream_activity=time.monotonic()
-            return {**self.stream_state,'points':list(self.stream_state['points'])}
+            now=dt.datetime.now(dt.timezone.utc)
+            stamps=[self.stream_state.get(k) for k in ('lastTick','exchangeTimestamp','tradeTimestamp')]
+            fresh=self.stream_state['state']=='connected' and all(
+                value and 0 <= (now-dt.datetime.fromisoformat(value)).total_seconds() <= 15 for value in stamps)
+            return {**self.stream_state,'points':list(self.stream_state['points']),'freshTrade':fresh}
 
     def stop_stream(self,owner):
         with self.lock:

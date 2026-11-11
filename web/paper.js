@@ -1,0 +1,27 @@
+'use strict';
+const $=id=>document.getElementById(id);let snapshot={accounts:[],events:[]};
+const feedPanel=document.createElement('section');
+feedPanel.innerHTML='<h3>Feed and reconciliation</h3><p id="feed-info"></p><button id="link-fixture">Connect fixture replay</button><button id="unlink-fixture">Disconnect fixture</button><button id="rebuild">Verify balances from fills</button><p id="reconciliation" role="status"></p>';
+$('summary').after(feedPanel);
+for(const [name,label,type] of [['symbol','Exact symbol','text'],['provider','Data provider','text'],['adjustment','Price adjustment method','text'],['capital','Starting cash (INR)','number'],['units','Fixed whole shares','number'],['maxExposure','Maximum position cost (INR)','number'],['dailyLossLimit','Daily equity loss threshold (INR)','number'],['costBps','Costs per side (basis points)','number'],['slippageBps','Slippage per side (basis points)','number']]){
+ const l=document.createElement('label');l.textContent=label;const i=document.createElement('input');i.name=name;i.type=type;i.required=true;if(type==='number'){i.min='0';i.step=name==='units'?'1':'any';}l.append(i);$('fields').append(l);
+}
+async function api(action,data={}){const r=await fetch('/api/trader/paper-'+action,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':document.querySelector('meta[name="csrf-token"]').content},body:JSON.stringify(data)});const body=await r.json();if(!r.ok)throw Error(body.error||'Request failed');return body;}
+function show(){const id=$('account').value;const s=snapshot.accounts.find(x=>x.id===id);$('state').textContent=s?JSON.stringify(s,null,2):'No account selected.';$('summary').replaceChildren();
+ const feed=s?.feed;
+ $('feed-info').textContent=feed?['Fixture replay',feed.instrument,feed.status,'Last exchange bar: '+(feed.exchangeStart||'none'),'Received: '+(feed.received||'none'),feed.ageAtReceiptSeconds!=null?'Historical age at receipt: '+Math.floor(feed.ageAtReceiptSeconds)+' seconds':'',feed.lastError||''].filter(Boolean).join(' · '):'Manual imports only. No forward feed connected.';
+ $('link-fixture').hidden=s?.config.source!=='synthetic'||(!feed&&Boolean(s.lastBar))||feed?.status==='connected (fixture)';
+ $('unlink-fixture').hidden=feed?.status!=='connected (fixture)';
+ $('reconciliation').textContent='';
+ if(s){const money=x=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR'}).format(x);for(const [label,value] of [['Mode',s.config.source+' / '+s.status],['Cash',money(s.cash)],['Marked equity',money(s.equity)],['Shares held',s.quantity],['Realized P&L',money(s.realized)],['Fees paid',money(s.fees)],['Daily loss used',money(s.dayLoss)+' / '+money(s.config.dailyLossLimit)],['Risk halt',s.riskHalted?'New buys blocked':'No breach in imported session'],['Latest imported candle',s.lastBar||'None'],['Pending intent',s.pending?.side||'None']]){const term=document.createElement('dt'),definition=document.createElement('dd');term.textContent=label;definition.textContent=value;$('summary').append(term,definition);}}
+ $('events').textContent=snapshot.events.filter(x=>x.account===id&&x.type!=='bar').map(x=>x.at+' · '+x.type+' · '+(x.detail||x.reason||(x.side?x.side+' '+x.quantity+' @ '+x.price.toFixed(4):'Account configured'))).join('\n')||'No recent control or fill events.';}
+async function refresh(selected){snapshot=await api('state');const id=selected||$('account').value;$('account').replaceChildren();for(const s of snapshot.accounts){const o=document.createElement('option');o.value=s.id;o.textContent=s.config.symbol+' · '+s.config.source+' · '+s.status+' · '+s.id.slice(0,8);$('account').append(o);}if(snapshot.accounts.some(s=>s.id===id))$('account').value=id;$('assumptions').textContent=snapshot.assumptions;show();}
+async function run(fn){document.querySelectorAll('button').forEach(b=>b.disabled=true);$('message').textContent='Working…';try{const result=await fn();await refresh(result?.id);$('message').textContent=result?.processed!==undefined?'Processed '+result.processed+' new bars; '+result.duplicates+' identical duplicates skipped.':'Complete. Review account state below.';}catch(e){$('message').textContent=e.message;}finally{document.querySelectorAll('button').forEach(b=>b.disabled=false);}}
+$('create').onsubmit=e=>{e.preventDefault();const values=Object.fromEntries(new FormData(e.target));values.permitted=values.permitted==='on';run(()=>api('create',values));};
+$('account').onchange=show;$('refresh').onclick=()=>run(()=>Promise.resolve());
+for(const b of document.querySelectorAll('[data-action]'))b.onclick=()=>run(()=>api('control',{id:$('account').value,action:b.dataset.action}));
+$('link-fixture').onclick=()=>run(()=>api('fixture-connect',{id:$('account').value}));
+$('unlink-fixture').onclick=()=>run(()=>api('fixture-disconnect',{id:$('account').value}));
+$('rebuild').onclick=async()=>{const id=$('account').value;try{const r=await api('reconcile',{id});if(id===$('account').value)$('reconciliation').textContent=(r.matches?'Matches ledger':'MISMATCH: '+r.mismatches.join(', '))+' · '+r.fills+' fills · cash ₹'+r.cash.toFixed(2)+' · '+r.quantity+' shares · fees ₹'+r.fees.toFixed(2);}catch(e){$('message').textContent=e.message;}};
+$('ingest').onclick=()=>run(()=>{const id=$('account').value;const feed=snapshot.accounts.find(s=>s.id===id)?.feed;return api(feed?'fixture-bars':'bars',{id,instrument:feed?.instrument,bars:JSON.parse($('bars').value),permitted:$('retain').checked});});
+run(()=>Promise.resolve());

@@ -125,7 +125,7 @@ async function pollStream() {
     const data=await api('/api/market/stream');
     $('#stream-state').textContent=data.state.toUpperCase();
     const age=data.lastTick ? Math.max(0,Math.round((Date.now()-Date.parse(data.lastTick))/1000)) : null;
-    $('#stream-info').textContent=data.lastTick ? `${data.symbol} · last tick received ${age}s ago${age>15 ? ' · STALE / no recent tick' : ''} · ${money(data.points.at(-1)?.close)}` : 'Waiting for market ticks. No synthetic prices are shown here.';
+    $('#stream-info').textContent=data.lastTick ? `${data.symbol} · last tick received ${age}s ago${!data.freshTrade || age>15 ? ' · trade freshness unverified' : ''} · ${money(data.points.at(-1)?.close)}` : 'Waiting for market ticks. No synthetic prices are shown here.';
     chart($('#live-chart'),data.points);
     if (data.state==='stopped') clearInterval(streamTimer);
   } catch(e) { $('#stream-state').textContent='ERROR'; $('#stream-info').textContent=e.message; clearInterval(streamTimer); }

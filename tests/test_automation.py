@@ -61,6 +61,23 @@ class AutomationTests(unittest.TestCase):
     def test_unknown_missing_from_snapshot_stays_blocked(self):
         identity=self.prepare();self.engine.submit_mock(identity,Mock(True))
         self.assertFalse(self.engine.reconcile_mock([])['reconciled'])
+
+    def test_timeout_partial_wrong_broker_identity_then_final(self):
+        self.engine.control('stop')
+        self.engine.save(CONFIG|dict(units=2))
+        self.engine.state='running';self.engine.reconciled=True
+        key=self.engine.prepare('bar',2,'INFY',2,100,SNAP)
+        broker=Mock(True);self.engine.submit_mock(key,broker)
+        engine=Coordinator(self.path)
+        engine.reconcile_mock([dict(id=key,broker_id='order-A',state='PARTIAL',filled=1)])
+        result=engine.reconcile_mock([dict(id=key,broker_id='unrelated-B',state='COMPLETE',filled=2)])
+        self.assertFalse(result['reconciled'])
+        row=result['intents'][0]
+        self.assertEqual((row['broker_id'],row['filled'],row['state']),('order-A',1,'UNKNOWN'))
+        self.assertFalse(engine.reconcile_mock([])['reconciled'])
+        final=engine.reconcile_mock([dict(id=key,broker_id='order-A',state='COMPLETE',filled=2)])
+        self.assertEqual(final['intents'][0]['filled'],2)
+        self.assertEqual(broker.calls,1)
     def test_external_position_mismatch_faults(self):
         self.assertEqual(self.engine.reconcile_mock([],True)['state'],'faulted')
     def test_stop_does_not_fake_cancellation_or_closure(self):

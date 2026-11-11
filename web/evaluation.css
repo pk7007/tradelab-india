@@ -6,3 +6,5 @@ th,td{padding:.65rem;text-align:right;border-bottom:1px solid #35485d;white-spac
 th:first-child,caption{text-align:left}thead th,caption{color:#aec4d7}caption{padding-bottom:.6rem}
 tbody tr:nth-child(3){background:#1d3446}summary{cursor:pointer;color:#a2e4d4}#message{min-height:1.5em}
 .hero span{color:#acc1d9}p,li{max-width:88ch}#payload{max-height:18rem}
+
+#summary{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-variant-numeric:tabular-nums}#summary dt{color:#acc1d9}#summary dd{margin:0;text-align:right;overflow-wrap:anywhere}

@@ -1,6 +1,7 @@
 """Load only pure order validation and Handler definitions; no app setup or real broker."""
 import ast
 import http.server
+import hashlib
 import json
 import math
 import threading
@@ -11,7 +12,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 source=ast.parse((Path(__file__).resolve().parents[1]/'app.py').read_text())
-namespace=dict(math=math,Any=object,http=SimpleNamespace(server=http.server),time=time,LOCK=threading.RLock(),LIVE_ORDERS_ENABLED=True)
+namespace=dict(math=math,hashlib=hashlib,Any=object,http=SimpleNamespace(server=http.server),time=time,LOCK=threading.RLock(),LIVE_ORDERS_ENABLED=True)
 exec(compile(ast.Module(body=[n for n in source.body if isinstance(n,(ast.FunctionDef,ast.ClassDef)) and n.name in ('KiteError','KiteSessionExpired','validate_order','Handler')],type_ignores=[]),'app.py','exec'),namespace)
 validate=namespace['validate_order'];Handler=namespace['Handler']
 ORDER=dict(exchange='NSE',tradingsymbol='INFY',transaction_type='BUY',product='CNC',order_type='LIMIT',quantity='2',price='100',validity='DAY')
@@ -30,12 +31,13 @@ class OrderTests(unittest.TestCase):
         broker.assert_not_called();self.assertEqual(h.error.call_args.args[0],409)
     def test_expired_or_changed_review_blocked(self):
         for review in [dict(order=validate(ORDER),created=time.monotonic()-121),dict(order=validate(ORDER)|dict(quantity=99),created=time.monotonic())]:
+            review['loginDigest']=hashlib.sha256(b'fixture').digest()
             h=self.handler();broker=Mock();namespace['kite_request']=broker
             h.place_order({'access_token':'fixture','reviews':{'a'*24:review}},ORDER|dict(confirm_text='PLACE LIVE ORDER',confirmation_id='a'*24))
             broker.assert_not_called()
     def test_ambiguous_submission_cannot_replay(self):
         h=self.handler();broker=Mock(side_effect=namespace['KiteError']('timeout'));namespace['kite_request']=broker
-        session={'access_token':'fixture','reviews':{'a'*24:dict(order=validate(ORDER),created=time.monotonic())}}
+        session={'access_token':'fixture','reviews':{'a'*24:dict(order=validate(ORDER),created=time.monotonic(),loginDigest=hashlib.sha256(b'fixture').digest())}}
         values=ORDER|dict(confirm_text='PLACE LIVE ORDER',confirmation_id='a'*24)
         h.place_order(session,values);h.place_order(session,values)
         self.assertEqual(broker.call_count,1);self.assertEqual(h.error.call_args.args[0],409)

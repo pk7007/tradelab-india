@@ -14,10 +14,13 @@ TradeLab brings market data, strategy evaluation, risk planning and reviewed man
 - **Market research:** private live charts, historical candle viewing and imported chart-setup scanning.
 - **Reproducible evaluation:** CSV/JSON inputs, chronological validation, final holdout, matched buy-and-hold comparison and cost sensitivity.
 - **Risk planning:** whole-share position sizing, exposure limits, remaining daily loss checks and explicit paper-order approvals.
+- **Durable paper accounts:** imported-candle SMA replay with persisted fills, costs, duplicate protection and restart recovery. Continuous paper feeds are not connected.
 - **Source-aware analysis:** imported watchlist news, publication/availability timestamps, deduplication and structured earnings comparisons.
 - **Automation foundation:** versioned strategy drafts, a SQLite intent ledger and audit history. Automated live dispatch is not connected.
 
 ## Workflow
+
+**Try the feed-recovery milestone (fixture replay only):** From the repository root run `python scripts/fixture_recovery.py`. This starts two successive local app processes against one temporary synthetic paper ledger, interrupts a pending signal, reconnects with overlapping bars and checks the dashboard balances against the full fill journal. It does not access a broker or enable live execution. [Results and scope](docs/paper-feed-recovery.md).
 
 **Research → Evaluate → Plan risk → Review an order**
 
@@ -93,7 +96,9 @@ node --check web/trader.js
 node --check web/evaluation.js
 ```
 
-Latest local verification: **80 Python tests passed on 5 November 2026**. The [checks workflow](.github/workflows/checks.yml) runs offline regression and syntax checks. Live broker execution and production reliability are not established by those tests.
+Latest local verification: **91 Python tests passed on 11 November 2026**, plus a separate HTTP fixture recovery run. The [checks workflow](.github/workflows/checks.yml) includes both. Live broker execution and production reliability are not established by those tests. See the [implementation log and backlog](docs/implementation-log.md).
+
+Open `/trader-paper` for the separate persistent paper-account workflow. Creation requires your financial assumptions and permission to retain imported candles locally. Start enables ingestion; pause preserves pending intents; stop cancels unfilled local intents without closing positions. Restart pauses accounts. The original session-based paper approval tool remains separate.
 
 ## Repository map
 

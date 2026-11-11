@@ -1,0 +1,42 @@
+# OpenAlgo: engineering study for TradeLab India
+
+Reviewed 11 November 2026. Snapshot: [68f91cf](https://github.com/marketcalls/openalgo/commit/68f91cf58da2dddba2502eaebd034479b1cd4452). This is a static architecture and selected implementation review. No OpenAlgo code was installed, strategy executed, provider entitlement tested or broker account connected. Findings about individual execution paths refer to this revision; they are not guarantees for every plugin.
+
+## Product boundary
+
+OpenAlgo is a self-hosted execution and market-data platform. External strategies can call its normalized API; its own Python host, visual Flow builder, agent and options tools are additional clients. The important architectural choice is that several different interfaces share services and broker connectivity. A hosted strategy, an execution simulator and a historical backtest answer different questions. None establishes that a signal has an edge. [Project overview](https://github.com/marketcalls/openalgo/blob/68f91cf58da2dddba2502eaebd034479b1cd4452/README.md)
+
+## What happens to an order
+
+1. The REST handler accepts a normalized request. Order validation and routing live in the service layer, separate from the HTTP response. Semi-automatic submissions eligible for approval can enter the Action Center. Approval authorizes an execution attempt; it does not confirm a fill. [REST handler](https://github.com/marketcalls/openalgo/blob/68f91cf58da2dddba2502eaebd034479b1cd4452/restx_api/place_order.py) · [Order service](https://github.com/marketcalls/openalgo/blob/68f91cf58da2dddba2502eaebd034479b1cd4452/services/place_order_service.py) · [Action Center inventory](https://github.com/marketcalls/openalgo/blob/68f91cf58da2dddba2502eaebd034479b1cd4452/DISCOVERY_MAP.md)
+2. Analyzer mode routes to a sandbox. The service also recognizes an execution route already chosen by a strategy run. This matters when two strategies have different modes: changing a platform toggle while a live position is open must not silently send its exit to a simulator. In TradeLab, keep execution mode immutable for an account/run and inaccessible as a paper-to-live request override. [Routing implementation](https://github.com/marketcalls/openalgo/blob/68f91cf58da2dddba2502eaebd034479b1cd4452/services/place_order_service.py)
+3. A broker adapter translates the normalized order. The Zerodha adapter adds a correlation tag before submission and can search Kite's order book briefly if the response is lost. Finding the tag recovers the order identity; failing to find it is not proof of rejection. The useful TradeLab pattern is a durable UNKNOWN state and reconciliation, not an automatic second POST. A recovered order ID still needs follow-up on fills and actual positions. [Zerodha implementation](https://github.com/marketcalls/openalgo/blob/68f91cf58da2dddba2502eaebd034479b1cd4452/broker/zerodha/api/order_api.py)
+4. Events report order outcomes to downstream consumers. Separate traffic, health and latency stores help diagnose failure without treating a UI notification as authoritative account state. For a single-user prototype, begin with a durable execution journal and correlation IDs before copying the entire observability stack. [Subsystem inventory](https://github.com/marketcalls/openalgo/blob/68f91cf58da2dddba2502eaebd034479b1cd4452/DISCOVERY_MAP.md)
+
+## Simulation and data
+
+The sandbox engine has a conditional database update that claims an eligible pending order for filling. Multiple workers seeing the same quote should not each fill the same order. Position accounting also uses a process-level lock; the source distinguishes this from database-level protection across processes. One atomic fill claim does not imply every portfolio operation is safe under arbitrary multi-process deployment. [Sandbox execution engine](https://github.com/marketcalls/openalgo/blob/68f91cf58da2dddba2502eaebd034479b1cd4452/sandbox/execution_engine.py)
+
+A specific quote check rejects a last price inconsistent with its reported daily range. It cannot prove freshness when the range is missing, or when an old last price still falls inside the range. For TradeLab, attach event time, receive time and session identity to every observation. After a reconnect, require a contiguous completed-bar sequence or flag the gap before calculating a signal. [Quote check](https://github.com/marketcalls/openalgo/blob/68f91cf58da2dddba2502eaebd034479b1cd4452/sandbox/execution_engine.py)
+
+OpenAlgo separates broker history and local analytical history (Historify/DuckDB) from operational state. Its WebSocket proxy tracks authenticated clients, subscriptions and broker adapters; ZeroMQ transports feed events internally. For TradeLab, implement the contract first: instrument identity, interval, source, timestamps, entitlement and gap policy. A dedicated message bus is optional until load measurements justify it. A connector does not itself establish access or retention rights. [WebSocket proxy](https://github.com/marketcalls/openalgo/blob/68f91cf58da2dddba2502eaebd034479b1cd4452/websocket_proxy/server.py) · [History and storage map](https://github.com/marketcalls/openalgo/blob/68f91cf58da2dddba2502eaebd034479b1cd4452/DISCOVERY_MAP.md)
+
+## Extensibility, operations and adoption
+
+- **Broker breadth:** Plugin manifests describe exchanges and capabilities. The project README and older discovery map report different adapter totals. Do not use a marketing count as an interoperability test; maintain a matrix of verified operations per adapter. [Zerodha manifest](https://github.com/marketcalls/openalgo/blob/68f91cf58da2dddba2502eaebd034479b1cd4452/broker/zerodha/plugin.json)
+- **Hosting:** The pinned package declares Python 3.12+ and version 2.0.3.3. The frontend is React; the backend uses Flask. No frontend rewrite is required to adopt the execution design in TradeLab. [Package manifest](https://github.com/marketcalls/openalgo/blob/68f91cf58da2dddba2502eaebd034479b1cd4452/pyproject.toml) · [Architecture inventory](https://github.com/marketcalls/openalgo/blob/68f91cf58da2dddba2502eaebd034479b1cd4452/DISCOVERY_MAP.md)
+- **Deployment:** Compose maps web and streaming ports separately and persists databases, logs, strategies and keys. Its default streaming host port is 8765, which collides with TradeLab's standard web port. Any future trial should have separate ports, local-only access, secrets and storage. [Compose manifest](https://github.com/marketcalls/openalgo/blob/68f91cf58da2dddba2502eaebd034479b1cd4452/docker-compose.yaml)
+- **License:** The repository carries AGPL-3.0. Prefer independently implemented contracts and tests; review the license before copying or distributing upstream components. [License](https://github.com/marketcalls/openalgo/blob/68f91cf58da2dddba2502eaebd034479b1cd4452/License.md)
+- **Defer:** Running arbitrary Python, exposing webhooks, enabling agent order tools and supporting many brokers all expand operational scope. None is needed to validate the first single-symbol forward paper session.
+
+## Recommended TradeLab milestones and acceptance tests
+
+| Priority | Milestone | Acceptance test |
+| --- | --- | --- |
+| 1 | Paper-only authorized feed adapter | Submit fresh, delayed, duplicate and out-of-order observations. Only eligible completed bars can affect the ledger; an outage is visibly different from a quiet market. |
+| 2 | Recoverable forward paper session | Interrupt after persisting an intent, then replay overlapping feed data. Exactly one modeled fill is booked; cash, fees, holdings and P&L reconcile independently. |
+| 3 | Explicit execution contracts | Changing another account's mode cannot alter an existing run. A paper adapter cannot call a broker write path. |
+| 4 | Mock broker reconciliation | Lose an acknowledgement after acceptance, then supply partial and final fills. Make no duplicate submission; retain unresolved status until evidence arrives. |
+| 5 | Evaluate expansion | Run the same adapter contract tests against a second broker mock; expose unsupported operations explicitly. Only then assess a real integration. |
+
+TradeLab already has versioned research, an import-driven paper ledger and duplicate-bar tests. Its immediate gap is time-aware market-data delivery and recovery, not another strategy editor. These recommendations are engineering inferences from the source, not results from a head-to-head runtime benchmark.
