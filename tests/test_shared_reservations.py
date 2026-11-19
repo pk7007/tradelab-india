@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
-from automation import SharedReservations, Coordinator
+from automation import SharedReservations, Coordinator, validate_config
 from test_automation import CONFIG, SNAP, Mock
 
 
@@ -23,6 +23,15 @@ class SharedFundingTests(unittest.TestCase):
                 return False
         with ThreadPoolExecutor(max_workers=2) as pool:
             self.assertEqual(sum(pool.map(attempt,['intraday','longterm'])),1)
+
+    def test_boolean_risk_values_and_truthy_session_flags_rejected(self):
+        with self.assertRaises(ValueError):validate_config(CONFIG|dict(units=True))
+        engine=Coordinator(self.path);engine.save(CONFIG)
+        engine.state='running';engine.reconciled=True
+        for changed in (dict(loss=False),dict(inSession='yes'),dict(externalMismatch='')):
+            with self.assertRaises(ValueError):engine.prepare('bar',1,'INFY',1,100,SNAP|changed)
+        with self.assertRaises(ValueError):engine.prepare('bar',1,'INFY',1,True,SNAP)
+        self.assertEqual(engine.status()['intents'],[])
 
     def test_last_share_cannot_be_sold_twice(self):
         self.ledger.reserve('a','broker','longterm','NSE:INFY:CNC','SELL',1,900)
@@ -97,6 +106,17 @@ class SharedFundingTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             engine.prepare('bar',1,'INFY',1,100,SNAP|{'fundingAccount':'unconfigured'})
         self.assertEqual(engine.status()['intents'],[])
+
+    def test_reconciliation_cannot_complete_without_funding_record(self):
+        engine=Coordinator(self.path);engine.save(CONFIG)
+        engine.state='running';engine.reconciled=True
+        identity=engine.prepare('bar',1,'INFY',1,100,SNAP)
+        engine.submit_mock(identity,Mock())
+        with engine.db() as db:
+            db.execute('DELETE FROM funding_reservations WHERE id=?',(identity,))
+        with self.assertRaisesRegex(ValueError,'reservation'):
+            engine.reconcile_mock([dict(id=identity,broker_id='mock-order-1',state='COMPLETE',filled=1)])
+        self.assertNotEqual(engine.status()['intents'][0]['state'],'COMPLETE')
 
     def test_late_ack_or_timeout_cannot_erase_reconciled_fills(self):
         for timeout in (False,True):

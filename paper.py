@@ -193,7 +193,7 @@ class PaperEngine:
         return dict(matches=not mismatches, mismatches=mismatches, quantity=quantity, fills=fills,
                     unrealized=market_value-basis, **rebuilt)
 
-    def ingest(self, identity, rows, permitted, *, fixture_instrument=None):
+    def ingest(self, identity, rows, permitted, *, fixture_instrument=None, transaction_guard=None):
         if permitted is not True: raise ValueError('Confirm permission for local candle retention.')
         if not isinstance(rows, list) or not 1 <= len(rows) <= 1000: raise ValueError('Supply 1–1,000 completed five-minute bars.')
         cutoff = dt.datetime.now(IST)
@@ -213,6 +213,9 @@ class PaperEngine:
             except (TypeError, KeyError, OverflowError) as exc: raise ValueError('Malformed candle.') from exc
         processed = duplicates = 0
         with self.db() as db:
+            if transaction_guard is None and db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='paper_workers'").fetchone() and db.execute('SELECT 1 FROM paper_workers WHERE account=?',(identity,)).fetchone():
+                raise ValueError('Worker-bound accounts accept only fenced worker observations.')
+            if transaction_guard is not None: transaction_guard(db)
             s = self.load(db, identity)
             if s['status'] != 'running': raise ValueError('Start this paper account before ingesting candles.')
             if s['config']['strategy'] != intraday_contract.VERSION and any(bar['volume'] <= 0 for bar in normalized):
@@ -306,4 +309,5 @@ class PaperEngine:
                     feed.update(received=received.isoformat(),exchangeStart=bar['date'],ageAtReceiptSeconds=(received-stamp-dt.timedelta(minutes=5)).total_seconds())
                 self.save(db,s,dict(type='bar',bar=bar['date'],equity=s['equity'],pending=s['pending'],riskHalted=s['riskHalted']))
                 processed += 1
+            if transaction_guard is not None: transaction_guard(db)
         return dict(account=s,processed=processed,duplicates=duplicates)

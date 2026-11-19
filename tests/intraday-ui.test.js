@@ -23,3 +23,28 @@ work.then(result=>{
  assert.match(modelContext.modelDescription({strategy:'intraday-v1',maxLoss:25,entryEnd:'14:45',squareOff:'15:15'}),/losses can exceed/);
  console.log('PASS: edited research discards late candidates; intraday/legacy protection wording differs');
 }).catch(error=>{console.error(error);process.exitCode=1;});
+
+(async()=>{
+ const paperSource=fs.readFileSync('web/paper.js','utf8');
+ const account={disabled:false},buttons=[{disabled:false},{disabled:true}],message={textContent:''};
+ let finish,calls=0;
+ const ctx={paperBusy:false,$:id=>id==='account'?account:message,document:{querySelectorAll:()=>buttons},refresh:async()=>{}};
+ vm.createContext(ctx);
+ vm.runInContext(paperSource.slice(paperSource.indexOf('async function run('),paperSource.indexOf("$('create').onsubmit")),ctx);
+ const first=ctx.run(()=>{calls++;return new Promise(resolve=>finish=resolve);});
+ assert.equal(account.disabled,true,'Account switching must be disabled during mutation');
+ await ctx.run(()=>{calls++;});assert.equal(calls,1,'Repeated mutations must be ignored while busy');
+ finish({});await first;
+ assert.equal(account.disabled,false);assert.equal(buttons[0].disabled,false);assert.equal(buttons[1].disabled,true,'Unavailable controls must stay disabled');
+ const newsState={textContent:''},newsItems={children:['old article'],replaceChildren(...items){this.children=items;}},refreshButton={disabled:false};
+ const newsCtx={announcementBusy:false,document:{hidden:false},announcementRefresh:refreshButton,announcementState:newsState,announcementItems:newsItems,text:(_tag,value)=>({textContent:value}),api:async()=>{throw Error('Timeout');}};
+ vm.createContext(newsCtx);
+ vm.runInContext(source.slice(source.indexOf('async function refreshAnnouncements('),source.indexOf('announcementRefresh.onclick=')),newsCtx);
+ await newsCtx.refreshAnnouncements();assert.match(newsState.textContent,/freshness is not established/);assert.notEqual(newsItems.children[0],'old article');
+ const entryCtx={money:String};vm.createContext(entryCtx);
+ vm.runInContext(source.slice(source.indexOf('function paperModelDescription'),source.indexOf('function currentAccount')),entryCtx);
+ assert.equal(entryCtx.entryState({status:'running',riskHalted:true}),'daily loss blocked');
+ assert.equal(entryCtx.entryState({status:'paused'}),'processing stopped');
+ assert.equal(entryCtx.entryState({status:'running',recoveryRequired:true}),'recovery blocked');
+ console.log('PASS: paper mutation guard, account selection lock, unavailable controls and stale news removal');
+})().catch(error=>{console.error(error);process.exitCode=1;});

@@ -18,6 +18,8 @@ jobs:
       - name: Syntax checks
         run: |
           python -m py_compile app.py paper.py evaluation.py trader_suite.py automation.py market_data.py research.py validation_lab.py scripts/weekly_digest.py
+          python -m py_compile paper_worker.py worker_runtime.py broker_snapshot.py news_agent.py dashboard_news.py
+          python -m py_compile announcements.py research_context.py syndication.py portal.py execution_journal.py intraday_contract.py intraday_evaluation.py market_contract.py evidence.py
           node --check web/evaluation.js
           node --check web/paper.js
           node --check web/account.js
@@ -33,6 +35,7 @@ jobs:
           node tests/research-display.test.js
           node tests/portal-limits.test.js
           node tests/intraday-ui.test.js
+          node tests/worker-ui.test.js
       - name: Offline data and research tests
         run: python -m unittest discover -s tests -v
       - name: Paper fixture disconnect and process restart

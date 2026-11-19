@@ -63,6 +63,19 @@ class ExecutionJournalTests(unittest.TestCase):
         self.journal.acknowledgement(item['id'],'broker-one')
         self.assertEqual(self.journal.list(self.account)[0]['state'],'COMPLETE')
 
+    def test_conflicting_late_ack_after_terminal_requires_investigation(self):
+        item=self.prepare()
+        self.journal.reconcile(self.account,[self.broker(item)],[self.trade()])
+        self.journal.acknowledgement(item['id'],'second-broker-order')
+        result=self.journal.list(self.account)[0]
+        self.assertEqual(result['state'],'UNKNOWN')
+        self.assertEqual(result['brokerOrderId'],'broker-one')
+        self.assertEqual(result['filledQuantity'],2)
+        result=self.journal.reconcile(self.account,[self.broker(item)],[self.trade()])[0]
+        self.assertEqual(result['state'],'UNKNOWN')
+        self.assertEqual(result['conflictingBrokerOrderIds'],['second-broker-order'])
+        with self.assertRaises(ValueError):self.prepare('new-review')
+
     def test_late_ack_preserves_partial_and_foreign_tag_blocks(self):
         item=self.prepare()
         self.journal.reconcile(self.account,[self.broker(item,'OPEN',1)],[self.trade(1)])

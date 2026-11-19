@@ -109,3 +109,34 @@ class OrderTests(unittest.TestCase):
             h.do_POST()
         self.assertEqual(h.error.call_args.args[0],503)
         self.assertNotIn('secret',h.error.call_args.args[1])
+
+    def test_reconciliation_commit_holds_account_identity_lock(self):
+        h=self.handler();h.path='/api/orders/reconcile';h.valid_host=lambda:True;h.body_json=lambda:{}
+        session={'access_token':'fixture','profile':{'user_id':'fixture-user'}}
+        h.authenticated_session=lambda:('fixture',session)
+        class TrackingLock:
+            active=False
+            def __enter__(self):self.active=True
+            def __exit__(self,*args):self.active=False
+        lock=TrackingLock();journal=Mock()
+        journal.account.return_value='account'
+        def commit(*args):
+            self.assertTrue(lock.active)
+            return []
+        journal.reconcile.side_effect=commit
+        with patch.dict(namespace,LOCK=lock,EXECUTION=journal,urllib=urllib,kite_request=Mock(return_value={'data':[]})):
+            h.do_POST()
+        journal.reconcile.assert_called_once_with('account',[],[])
+        self.assertEqual(h.json_response.call_args.args[0],200)
+
+    def test_reconciliation_after_relogin_preserves_unresolved_intent(self):
+        h=self.handler();h.path='/api/orders/reconcile';h.valid_host=lambda:True;h.body_json=lambda:{}
+        session={'access_token':'fixture','profile':{'user_id':'fixture-user'}}
+        h.authenticated_session=lambda:('fixture',session)
+        journal=Mock();journal.account.return_value='account'
+        def broker(*args):
+            session['access_token']='changed'
+            return {'data':[]}
+        with patch.dict(namespace,EXECUTION=journal,urllib=urllib,kite_request=broker):h.do_POST()
+        journal.reconcile.assert_not_called()
+        self.assertEqual(h.error.call_args.args[0],409)

@@ -51,6 +51,10 @@ LIVE_EXECUTION_READY = False  # Shared broker cash/inventory and exit reconcilia
 LIVE_READINESS_REASON = "Live execution is blocked pending shared broker cash/inventory, approved risk limits, and exit reconciliation integration."
 from trader_suite import TOOLS, dispatch
 from portal import Portal
+from announcements import Announcements
+ANNOUNCEMENTS = Announcements()
+from dashboard_news import DashboardNews
+NEWS_AGENT = DashboardNews(Path(os.environ.get('TRADELAB_NEWS_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'news-agent.sqlite'))))
 PORTAL = Portal(Path(os.environ.get('TRADELAB_PORTAL_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'portal.sqlite'))))
 from paper import PaperEngine
 PAPER = PaperEngine(Path(os.environ.get('TRADELAB_PAPER_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'paper.sqlite'))))
@@ -63,6 +67,10 @@ AUTOMATION = Coordinator(Path(os.environ.get("TRADELAB_AUTOMATION_DB", str(Path(
 from market_data import MarketData, synthetic_research
 DATA_ROOT = Path(os.environ.get('TRADELAB_DATA_DIR', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'market-data')))
 MARKET = MarketData(API_KEY, DATA_ROOT)
+from worker_runtime import WorkerRuntime
+PAPER_WORKER = WorkerRuntime(PAPER, MARKET, NEWS_AGENT)
+from agent_service import AgentService
+AGENTS = AgentService(PORTAL.path.parent / 'agents.sqlite')
 
 
 class KiteError(Exception):
@@ -286,9 +294,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.error(404, "Not found.")
 
     def api_get(self, route: str, query: dict[str, list[str]]) -> None:
+        if route == '/api/news-agent':
+            self.json_response(200, NEWS_AGENT.status(getattr(MARKET,'master',[]))); return
+        if route == '/api/announcements':
+            self.json_response(200, ANNOUNCEMENTS.status(getattr(MARKET,'master',[]))); return
         session_id, session = self.session()
+        if route == '/api/agents':
+            self.json_response(200, AGENTS.status()); return
+        if route == '/api/paper-worker':
+            try: self.json_response(200, PAPER_WORKER.status())
+            except (sqlite3.Error,OSError): self.error(503,'Paper worker storage unavailable.')
+            return
         if route == '/api/portal':
-            try: self.json_response(200, PORTAL.status())
+            try:
+                result=PORTAL.status()
+                cached=NEWS_AGENT.result
+                result['newsConfigured']=True
+                result['newsConnected']=any(source['status']=='fetched' for source in cached.get('sources',[]))
+                result['newsHealth']=dict(status=cached.get('status','unchecked'),sources=cached.get('sources',[]))
+                self.json_response(200,result)
             except (sqlite3.Error, OSError): self.error(503, 'Portal storage is unavailable.')
             return
         if route == "/api/status":
@@ -361,10 +385,72 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except ValueError as exc:
             self.error(400, str(exc))
             return
+        if route.startswith('/api/agents/'):
+            try:
+                if route == '/api/agents/enqueue': result=dict(id=AGENTS.enqueue(values))
+                elif route == '/api/agents/run': result=dict(id=AGENTS.run_once())
+                elif route == '/api/agents/cancel': AGENTS.cancel(values.get('id')); result=dict(cancelled=True)
+                elif route == '/api/agents/lifecycle':
+                    AGENTS.lifecycle(values.get('id'),values.get('state'),values.get('reason'));result=dict(updated=True)
+                elif route == '/api/agents/review':
+                    AGENTS.review(values.get('id'),'human:local-operator',values.get('checks'),values.get('critical',False))
+                    result=dict(reviewed=True)
+                else: raise ValueError('Unknown agent action.')
+                self.json_response(200,result)
+            except (ValueError,TypeError,KeyError) as exc:self.error(400,str(exc))
+            except Exception:self.error(503,'Agent service unavailable.')
+            return
+        if route.startswith('/api/paper-worker/'):
+            try:
+                if route == '/api/paper-worker/start':
+                    if os.environ.get('KITE_DATA_STORAGE_APPROVED','false').lower()!='true':
+                        raise ValueError('Confirm permitted provider candle retention in local configuration before starting.')
+                    self.connected_token(session)
+                    result=PAPER_WORKER.start(session_id,session,values)
+                elif route == '/api/paper-worker/stop': result=PAPER_WORKER.stop()
+                else: raise ValueError('Unsupported paper worker action.')
+                self.json_response(200,result)
+            except (PermissionError,ValueError,TypeError,KeyError) as exc: self.error(400,str(exc))
+            except Exception: self.error(503,'Paper worker unavailable. No broker order was sent; inspect worker status.')
+            return
+        if route == '/api/broker/snapshot':
+            try:
+                from broker_snapshot import build_snapshot
+                import datetime as dt
+                with LOCK:
+                    token=self.connected_token(session)
+                    account=(session.get('profile') or {}).get('user_id')
+                collection_started=time.monotonic()
+                started_at=dt.datetime.now(dt.timezone.utc).isoformat()
+                payloads={key:kite_request(path,token) for key,path in (
+                    ('profile','/user/profile'),('funds','/user/margins'),('orders','/orders'),
+                    ('trades','/trades'),('positions','/portfolio/positions'),('holdings','/portfolio/holdings'))}
+                if time.monotonic()-collection_started>30:
+                    raise ValueError('Broker read collection exceeded 30 seconds; repeat snapshot.')
+                received=dt.datetime.now(dt.timezone.utc).isoformat()
+                with LOCK:
+                    if session.get('access_token')!=token or (session.get('profile') or {}).get('user_id')!=account:
+                        raise ValueError('Broker identity changed during read snapshot.')
+                    result=build_snapshot(account,payloads,expected=values.get('expected'),as_of=received,received_at=received)
+                result['collectionStartedAt']=started_at
+                result['collectionFinishedAt']=received
+                result['atomic']=False
+                self.json_response(200,result)
+            except (ValueError,PermissionError,TypeError,KeyError) as exc:self.error(409,str(exc))
+            except KiteSessionExpired:
+                self.error(401,'Broker session expired; reconnect before another snapshot.')
+            except Exception:self.error(503,'Broker read snapshot failed. No execution authority was granted.')
+            return
         if route.startswith('/api/portal/'):
             try:
                 if route == '/api/portal/settings': result = PORTAL.update(values)
-                elif route == '/api/portal/research': result = PORTAL.research(values)
+                elif route == '/api/portal/research':
+                    if values.get('horizon')=='intraday':
+                        from research_context import attach_announcements
+                        values,context=attach_announcements(values,NEWS_AGENT.status(getattr(MARKET,'master',[])))
+                        result=PORTAL.research(values)
+                        result['automaticNewsCheck']=context
+                    else: result=PORTAL.research(values)
                 else: raise ValueError('Unknown portal action.')
                 self.json_response(200, result)
             except (ValueError,TypeError,KeyError,OverflowError) as exc: self.error(400,str(exc))
@@ -448,6 +534,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if route == "/api/connect":
             self.begin_kite_login(session)
         elif route == "/api/disconnect":
+            PAPER_WORKER.stop_owner(session_id)
             MARKET.stop_stream(session_id)
             MARKET.cancel_owner(session_id)
             session.pop("access_token", None)
@@ -488,9 +575,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     account = EXECUTION.account(session.get("profile"))
                 orders = kite_request("/orders", token).get("data")
                 trades = kite_request("/trades", token).get("data")
-                if session.get("access_token") != token:
-                    raise ValueError("Broker session changed during reconciliation.")
-                self.json_response(200, {"intents": EXECUTION.reconcile(account, orders, trades), "positionsReconciled": False})
+                with LOCK:
+                    if session.get("access_token") != token or EXECUTION.account(session.get('profile')) != account:
+                        raise ValueError("Broker session changed during reconciliation.")
+                    intents = EXECUTION.reconcile(account, orders, trades)
+                self.json_response(200, {"intents": intents, "positionsReconciled": False})
             except (ValueError, PermissionError) as exc:
                 self.error(409, str(exc))
             except KiteSessionExpired:

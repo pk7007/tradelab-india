@@ -2,6 +2,8 @@
 
 ## Current state
 
+The [current architecture/capability map](feature-status.md) and [20 November loss-path audit](gap-audit-2026-11-20.md) supersede historical feature claims below. Primary navigation is Intraday, Long-term and Auto Trading; account/data diagnostics remain at `/advanced`.
+
 The app uses a single-user Python HTTP server, the official Kite Connect SDK, and a vanilla HTML/CSS/JavaScript interface. It binds to loopback, talks to Kite Connect from the server, and stores access tokens only in process memory. No market data is bundled. Historical jobs run on bounded worker threads; live quotes use one private KiteTicker connection with a bounded in-memory buffer. The browser reads its snapshot once per second. Storage is permission-gated and defaults to Windows Local App Data outside the repository.
 
 ## Proposed boundaries

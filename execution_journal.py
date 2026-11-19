@@ -56,11 +56,18 @@ class ExecutionJournal:
             db.execute('BEGIN IMMEDIATE')
             row = db.execute('SELECT body FROM intents WHERE id=?', (identity,)).fetchone()
             item = json.loads(row[0])
-            # A late acknowledgement must not undo already reconciled state.
-            if item['state'] in TERMINAL:
-                return
             if item.get('brokerOrderId') and order_id and item['brokerOrderId'] != order_id:
+                # Two broker identities may indicate a duplicate execution.
+                # Preserve known fills, but do not silently clear the conflict
+                # by observing the first order again on a later daily poll.
+                conflicts=set(item.get('conflictingBrokerOrderIds',[]))
+                conflicts.add(str(order_id))
+                item['conflictingBrokerOrderIds']=sorted(conflicts)
+                item['previousState']=item['state']
                 item['state'] = 'UNKNOWN'
+                item['reason']='Conflicting broker acknowledgement; investigate all order identities before any repeat.'
+            elif item['state'] in TERMINAL or item.get('conflictingBrokerOrderIds'):
+                return
             else:
                 item['brokerOrderId'] = order_id or item.get('brokerOrderId')
                 if item['state'] not in {'PARTIAL', 'OPEN'}:
@@ -74,6 +81,8 @@ class ExecutionJournal:
             rows = db.execute('SELECT id,body FROM intents WHERE account=?', (account,)).fetchall()
             for identity, body in rows:
                 item = json.loads(body)
+                if item.get('conflictingBrokerOrderIds'):
+                    continue
                 if item['state'] in TERMINAL:
                     continue
                 matches = [o for o in orders if isinstance(o, dict) and (o.get('tag') == item['tag'] or (item['brokerOrderId'] and o.get('order_id') == item['brokerOrderId']))]

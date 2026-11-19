@@ -6,9 +6,9 @@ Intraday research uses explicit imported candles and trade plans. Results must d
 
 The user's saved intraday planning settings are ₹1,000 capital, ₹25 planned loss per trade and ₹100 daily loss threshold. They are editable and do not allocate long-term funds or activate trading. Existing paper accounts retain their own settings. Their fixed-SMA model lacks protective per-trade stops, so the portal must not imply that ₹25 is enforced on those legacy accounts.
 
-Auto Trading exposes the durable paper account state and controls. Starting permits imported-candle processing; a continuous data scheduler is not connected. Entry pause preserves exit eligibility; pause/stop ingestion does not close shares. A requested close waits for the next accepted candle. Broker live dispatch remains locked pending the integration described in `system-repair-2026-11-18.md`.
+Auto Trading exposes the durable paper account state and controls. Starting permits imported-candle processing. An explicitly armed completed-Kite-candle paper worker is available; see continuous-paper-worker.md for calendar, retention and mapping setup. Entry pause preserves exit eligibility; pause/stop ingestion does not close shares. A requested close waits for the next accepted candle. Broker live dispatch remains locked pending the integration described in `system-repair-2026-11-18.md`.
 
-Kite connection, data setup, evaluations, raw imports and diagnostics belong under Settings/Advanced. AI and continuous publisher news are disconnected. No synthetic research result should be presented as a current stock recommendation.
+Kite connection, data setup, evaluations, raw imports and diagnostics belong under Settings/Advanced. AI is disconnected. Personal NSE/ET/Google RSS context is connected to research and worker context; it has no order authority. No synthetic research result should be presented as a current stock recommendation.
 
 ## Setup and verification
 

@@ -1,47 +1,32 @@
-# Operator capability map — 18 November 2026
+# Current capability map — 20 November 2026
 
-This is a source-inspection map, not a claim that a live broker session or every browser workflow was exercised. Local credentials and current account balances were not inspected. Automated real-money readiness is not demonstrated. Isolated browser checks of the home readiness display, repeated synthetic evaluation and paper entry-pause/close/reconciliation passed on 18 November; see the [repair report](system-repair-2026-11-18.md).
+This map describes current source and evidence. Running servers may use an older backend until restarted. A connected badge, mock test or module on disk does not establish production readiness. See [gap audit](gap-audit-2026-11-20.md) and [external-source plan](external-source-plan.md).
 
-## Visible workspaces
-
-| Route or workspace | Current implementation | Boundary / missing evidence |
+| Route/component | Status | Actual boundary |
 |---|---|---|
-| `/` account overview, orders, holdings, positions | Broker read adapters and account calculations; offline calculation tests exist | Valid authentication, broker responses, permissions and current balances require runtime verification. Login does not reconcile strategy ownership. |
-| `/` manual order review | Explicit review and confirmation; server validation; durable safety changes tracked in implementation report | Acceptance is not a fill. Uncertain outcomes require reconciliation; do not submit again just because the browser lost a response. |
-| `/` automation | Versioned configuration, coordinator ledger and local controls | Live scheduler/dispatch unavailable. Pause/stop do not cancel real orders or sell real positions. |
-| `/` market data | Instrument lookup, historical jobs, private last-price chart and stream freshness handling | Live connectivity and licensed retention require verification. Chart is not a complete tick archive. |
-| `/` research | Synthetic demonstration and research inputs | Fixture results do not establish profitability or a deployable strategy. |
-| `/trader-scanner` | Imported candle setup heuristics | No continuous market-wide feed. Imported symbols are not a point-in-time universe. |
-| `/trader-news` | Imported news/watchlist filtering and availability cutoff | Live publisher monitoring disconnected; links are manual research destinations. |
-| `/trader-entry` | Completed-bar snapshot evaluation | No continuous entry watcher or executable recommendation. |
-| `/trader-exit` | Long-only stop/target planning | Does not send protective broker orders; gaps can exceed modeled stop loss. |
-| `/trader-timemachine` | Bootstrap scenarios and in-sample setup matches | Not every possible outcome; no independent predictive validation. |
-| `/trader-risk` | Snapshot risk calculation and paper-draft gating | User-entered exposure is not authoritative broker inventory. |
-| `/trader-budget` | Whole-unit sizing including supplied costs/slippage | Not broker margin or historical tax calculation; gaps remain unbounded. |
-| `/trader-broker` | Explicitly approved hypothetical paper orders | Session-only paper book, lost on restart; supplied entry price is not a market fill. |
-| `/trader-alerts` | Snapshot threshold checks and optional current-stream browser watcher | Requires existing stream. No closed-tab delivery or automatic exits. |
-| `/trader-analyst` | Structured earnings JSON comparisons | No automatic PDF extraction or continuous filing feed. |
-| `/trader-pelosi` | Imported US congressional disclosures | No live filing feed; unrelated to Indian equity execution and trades may precede filing. |
-| `/trader-evaluate` | Fixed SMA evaluation, chronological windows, next-open fills and hold benchmark | Single-symbol price-return model; not a full intraday liquidation or dividend-aware long-term engine. |
-| `/trader-paper` | Durable simulated cash/positions/events, imports, synthetic feed fixture, ledger checks and controls | Independent simulation capital per account; not broker-funded strategy allocation. Full next-open simulated fills, no continuous real feed. |
+| `/`, `/intraday` | Verified offline; browser spot checks | Saved ₹1,000/₹25/₹100 planning limits, import-based candidate sizing and automatic eligible NSE context per research request. No continuous market-wide scanner or recommendation service. |
+| `/long-term` | Verified offline | Persistent watchlist; fundamentals/valuation/sector evidence missing. Insufficient evidence and no automatic purchases. |
+| `/auto-trading` | Verified offline | Durable paper summaries, costs, protection, entry/exit controls and history. Actual account-specific model shown. Explicitly armed completed-candle paper worker with lease fencing and news context; no production service supervisor or broker dispatch. |
+| Settings | Verified offline | Editable portal planning limits; old candidate sizing invalidated; existing paper account limits unchanged. |
+| `/advanced` | Broker reads previously verified; execution mock-only | Account, positions, holdings, quotes/history and old control room. On 19 November login, account reads, INFY quote and three daily candles succeeded. Current broker session not accessed during audit. |
+| `/trader-paper` | Verified offline | New opt-in Intraday v1 and legacy accounts. Stops/partial fills/square-off are modeled on imported candles. Independent account capital; no actual shared broker ownership. |
+| `/trader-evaluate` | Verified offline | Fixed daily SMA and matched holding benchmark; local report history and repeated holdout warning. No validated edge. |
+| `/api/trader/evaluate-intraday` | Verified offline | Same-engine temporary replay, unresolved exposure retained. No independent holdout/benchmark certification. |
+| `/api/announcements` | Public RSS fetch previously verified; parser mock tests | Rolling NSE summaries, five-minute in-memory cache, exact loaded NSE EQ mapping. Stale/failed evidence labelled. No archival/retraction/completeness SLA. |
+| `/api/portal/research` | Verified offline | Explicit candles/plans/risk snapshots and eligible point-in-time RSS context. AutoEligible false; no orders. |
+| `syndication.py` | Mock-only/disconnected | Revision-safe private cache and bounded response validation. Real Moneycontrol endpoint/credentials and pagination absent; no runtime feed or purge daemon. |
+| `evidence.py` | Offline validator only | Citation/symbol/time/schema validation. No model connected, semantic truth not certified. |
+| `market_contract.py` | Offline validator only | Quote freshness and explicit session manifest. No calendar importer or production source entitlement. |
+| `Coordinator` shared funding | Mock-only | Atomic cash/share/fee reservation and uncertain-order tests. No authoritative broker snapshots or strategy position ownership. |
+| Manual execution journal | Mock lifecycle; broker read adapter | Durable intent/order/trade correlation; contradictory identities remain UNKNOWN. Live dispatch locked; positionsReconciled false. |
+| Other `/trader-*` tools | Verified offline/import-only | Legacy compatible research/planning pages under Advanced. Their presence is not connected news, live scanner or a second automatic trading system. |
 
-## Operator distinctions
+## Required operating distinctions
 
-Credentials configured, token present, current market data, broker reconciliation, paper eligibility and live enablement are different states. The account header now displays those distinctions without treating authentication as readiness.
+Paper/live, token configured/authenticated, current data, reconciled ownership and approved strategy are separate states. Entry pause permits exit processing; stop/pause ingestion leaves exposure held. Requested exits remain pending until modeled fills. Daily limits and protective prices are not guaranteed loss caps. Imported historical data is not forward evidence.
 
-The paper screen explains that its account capital is independent. It displays existing shares separately from the control state. Pause new entries preserves exit processing; cancel pending entry removes an unfilled buy; simulated close requests need a future permitted observed bar. Pause all ingestion freezes exits too. A stop leaves existing shares held. None of these controls changes a real broker position.
+No real broker orders, new model connection, private Moneycontrol calls or GitHub publication occurred during this audit. No existing account was migrated or repriced.
 
-A manual order review is invalidated when order inputs change. A preview response arriving after an edit or a newer preview is ignored, preventing an older preview from replacing the order currently being reviewed. This is UI protection in addition to server-side validation.
+## Paper worker and news integration update
 
-## Checks for these UI changes
-
-- `node --check web/app.js`
-- `node --check web/paper.js`
-- `node tests/account.test.js`
-- `node tests/order-review.test.js`
-
-The review regression uses VM mocks of the preview handlers to exercise edited-input and overlapping-request responses. These checks do not exercise a browser rendering engine, live broker authentication or real-money submission. Full end-to-end browser verification remains a separate check.
-
-## Durable manual recovery surface
-
-The main workspace displays durable manual intents separately from the mock automation ledger, including requested/filled quantities, uncertain and partial states, broker order IDs and evidence. Refresh reads the journal; Reconcile reads broker orders and trades and does not place orders. The interface explicitly reports positions as unreconciled. Submission outcomes refresh this view, including request errors. The live-readiness reason comes from server status; configuration alone cannot unlock manual dispatch. A separate Resume new entries paper control preserves the distinction between entry pause and total ingestion pause.
+See [continuous paper operations](continuous-paper-worker.md). The new multi-source news agent is connected through /api/news-agent to Intraday research and worker context. Read-only broker snapshots are non-atomic and never enable execution. Offline evidence: 238 Python tests and six JavaScript regression scripts pass. Sustained authenticated forward evidence remains missing.

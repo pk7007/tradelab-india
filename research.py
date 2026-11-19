@@ -131,11 +131,11 @@ class ResearchRiskGate:
     def check(self, signal, *, fresh, reconciled, exposure, pending, added,
               exposure_limit, daily_loss, loss_limit):
         numbers=(exposure,pending,added,exposure_limit,daily_loss,loss_limit)
-        if not all(isinstance(n,(float,int)) and math.isfinite(n) and n>=0 for n in numbers):
+        if not all(not isinstance(n,bool) and isinstance(n,(float,int)) and math.isfinite(n) and n>=0 for n in numbers):
             return False, 'Invalid risk inputs'
         if not self.armed or self.killed: return False, 'Disarmed or killed'
-        if not fresh: return False, 'Missing or stale data'
-        if not reconciled or self.uncertain: return False, 'Reconciliation required'
+        if fresh is not True: return False, 'Missing or stale data'
+        if reconciled is not True or self.uncertain: return False, 'Reconciliation required'
         if signal in self.seen: return False, 'Duplicate signal'
         if loss_limit<=0 or daily_loss>=loss_limit: return False, 'Daily loss gate'
         if added<=0 or exposure+pending+added>exposure_limit: return False, 'Exposure gate'

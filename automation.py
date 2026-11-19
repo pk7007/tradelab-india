@@ -25,10 +25,12 @@ def validate_config(raw):
     if not 1<=len(symbols)<=25 or any(not re.fullmatch(r'[A-Z0-9&-]{1,30}',s) for s in symbols):raise ValueError('Use 1–25 exact NSE symbols.')
     c['symbols']=symbols
     for k in ('units','maxPositions','ordersPerMinute','fast','slow'):
+        if isinstance(c[k],bool): raise ValueError('Boolean is not a financial or strategy number: '+k)
         value=float(c[k])
         if not math.isfinite(value) or value!=int(value) or value<1:raise ValueError('Positive whole numbers required for '+k)
         c[k]=int(value)
     for k in ('capital','maxExposure','maxPositionValue','dailyLoss'):
+        if isinstance(c[k],bool): raise ValueError('Boolean is not a financial or strategy number: '+k)
         c[k]=float(c[k])
         if not math.isfinite(c[k]) or c[k]<=0:raise ValueError('Positive finite amount required for '+k)
     if not 2<=c['fast']<c['slow']<=200:raise ValueError('Use 2 <= fast < slow <= 200.')
@@ -97,9 +99,9 @@ class Coordinator:
             if self.state!='running' or not self.reconciled:raise ValueError('Disarmed or unreconciled.')
             if symbol not in c['symbols'] or quantity!=c['units']:raise ValueError('Instrument or size not approved.')
             keys=('ageSeconds','exposure','positionValue','positionCount','loss','available','marginRequired','spreadBps')
-            if any(k not in snapshot or not isinstance(snapshot[k],(int,float)) or not math.isfinite(snapshot[k]) or snapshot[k]<0 for k in keys):raise ValueError('Incomplete risk snapshot.')
-            if snapshot['ageSeconds']>5 or not snapshot.get('inSession') or snapshot.get('externalMismatch'):raise ValueError('Stale, outside session, or broker mismatch.')
-            if not isinstance(price,(int,float)) or not math.isfinite(price) or price<=0:raise ValueError('Invalid price.')
+            if any(k not in snapshot or isinstance(snapshot[k],bool) or not isinstance(snapshot[k],(int,float)) or not math.isfinite(snapshot[k]) or snapshot[k]<0 for k in keys):raise ValueError('Incomplete risk snapshot.')
+            if snapshot['ageSeconds']>5 or snapshot.get('inSession') is not True or snapshot.get('externalMismatch') is not False:raise ValueError('Stale, outside session, or broker mismatch.')
+            if isinstance(price,bool) or not isinstance(price,(int,float)) or not math.isfinite(price) or price<=0:raise ValueError('Invalid price.')
             if db.execute("SELECT 1 FROM intents WHERE state IN ('UNKNOWN','SUBMITTING')").fetchone():raise ValueError('Uncertain order must be reconciled.')
             pending=db.execute("SELECT COALESCE(SUM((quantity-filled)*price),0) FROM intents WHERE state IN ('PREPARED','OPEN','PARTIAL')").fetchone()[0]
             symbol_pending=db.execute("SELECT COALESCE(SUM((quantity-filled)*price),0) FROM intents WHERE symbol=? AND state IN ('PREPARED','OPEN','PARTIAL')",(symbol,)).fetchone()[0]
@@ -286,7 +288,7 @@ class SharedReservations:
     def settle_in(db, identity, state, filled):
         row = db.execute('SELECT account,instrument,side,units,cash,fees,state,filled FROM funding_reservations WHERE id=?', (identity,)).fetchone()
         if not row:
-            return
+            raise ValueError('Missing funding reservation; reconcile ledger before resolving intent.')
         if type(filled) is not int or not row[7] <= filled <= row[3]:
             raise ValueError('Regressive reservation fill.')
         if state not in (*ACTIVE,*TERMINAL):

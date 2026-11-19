@@ -4,11 +4,15 @@
 
 The home workspace now groups the product into **Intraday**, **Long-term**, and **Auto Trading**. Settings and advanced research remain available without filling the main navigation. See the [simple portal guide](docs/simple-portal.md). The previous control room is available at `/advanced`; existing paper and research records are preserved.
 
-New paper accounts can explicitly opt into **Intraday v1**: cost-aware sizing, modeled stop/target exits, volume-participation limits and observed-candle square-off. Legacy accounts keep their original behaviour. This is experimental imported-candle simulation; live dispatch and continuous feeds remain disconnected. See [intraday readiness and operations](docs/intraday-readiness.md).
+New paper accounts can explicitly opt into **Intraday v1**: cost-aware sizing, modeled stop/target exits, volume-participation limits and observed-candle square-off. Legacy accounts keep their original behaviour. An explicitly armed completed-Kite-candle paper worker is now available; fills remain modeled and live dispatch stays locked. See [continuous paper setup](docs/continuous-paper-worker.md). See [intraday readiness and operations](docs/intraday-readiness.md).
 
 TradeLab brings market data, strategy evaluation, risk planning and reviewed manual orders into a local browser application. Built with Python, JavaScript and Zerodha Kite Connect, it makes the assumptions behind a trading idea visible—from the data used to the costs and risks modeled.
 
 **Status:** research and durable paper-trading prototype. Manual and automated live dispatch are locked pending integrated broker funding, ownership, risk and exit validation. Real-market profitability is unproven.
+
+Latest full algorithm audit: [complete audit and pending steps](docs/complete-algorithm-audit-2026-11-20.md).
+
+Latest review: [20 November gap audit](docs/gap-audit-2026-11-20.md) and [external-source procurement plan](docs/external-source-plan.md). The local assessment is 5.45/10; live operation remains materially incomplete; the new paper worker has offline regression coverage but no sustained authenticated forward-run evidence. The audit fixes order-conflict handling, reservation integrity, revision/cursor races and stale frontend decisions. NSE RSS context is implemented; Moneycontrol remains an offline mock adapter. No score represents a probability of profit.
 
 [Get started](#quick-start) · [Features](#features) · [Evaluation](#strategy-evaluation) · [Roadmap](#roadmap) · [Documentation](#documentation)
 
@@ -18,7 +22,8 @@ TradeLab brings market data, strategy evaluation, risk planning and reviewed man
 - **Market research:** private live charts, historical candle viewing and imported chart-setup scanning.
 - **Reproducible evaluation:** CSV/JSON inputs, chronological validation, final holdout, matched buy-and-hold comparison and cost sensitivity.
 - **Risk planning:** whole-share position sizing, exposure limits, remaining daily loss checks and explicit paper-order approvals.
-- **Durable paper accounts:** imported-candle SMA replay with persisted fills, costs, duplicate protection and restart recovery. Continuous paper feeds are not connected.
+- **Durable paper accounts:** imported-candle SMA replay with persisted fills, costs, duplicate protection and restart recovery. An opt-in fenced worker can poll completed Kite candles with explicit retention/calendar confirmation; credentials stay in memory.
+- **Integrated news agent:** five-minute personal NSE/ET/Google RSS checks in Intraday research and paper-worker context, with per-source freshness, exact NSE company mapping and no headline-triggered orders. See [news agent](docs/news-agent.md).
 - **Source-aware analysis:** imported watchlist news, publication/availability timestamps, deduplication and structured earnings comparisons.
 - **Automation foundation:** versioned strategy drafts, a SQLite intent ledger and audit history. Automated live dispatch is not connected.
 - **Recovery and research evidence:** durable manual intent reconciliation, mock shared cash/share reservations, and a local experiment registry that flags repeated holdout viewing. These are separate components; they do not constitute a unified live execution system.
@@ -29,9 +34,11 @@ TradeLab brings market data, strategy evaluation, risk planning and reviewed man
 
 **Research → Evaluate → Plan risk → Review an order**
 
-Inspect permitted data, test a rule against a benchmark, review its assumptions, and size a hypothetical position. Paper approval and manually reviewed broker orders are separate workflows. Forward paper execution is the next development stage.
+Inspect permitted data, test a rule against a benchmark, review its assumptions, and size a hypothetical position. Paper approval and manually reviewed broker orders are separate workflows. Authenticated forward paper verification remains the next acceptance stage.
 
 ## Quick start
+
+For a standalone Indian-market RSS reader with watchlist filtering and continuous polling, see the [news agent guide](docs/news-agent.md). Run `python news_agent.py --once` or `python news_agent.py --watch`. The same reader is also connected to dashboard research and paper-worker context.
 
 Requires **Python 3.10+**. Node.js is used for JavaScript development checks.
 
