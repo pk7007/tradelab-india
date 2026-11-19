@@ -9,9 +9,10 @@ import math
 import random
 
 from research import IST, timestamp, validate_rows
+from strategy_contract import VERSION, target_long, assumed_fill
 
 
-PROTOCOL = "sma5-20-next-open-v1"
+PROTOCOL = VERSION
 FIELDS = ("open", "high", "low", "close", "volume")
 
 
@@ -101,16 +102,15 @@ def _portfolio(bars, signals, start, end, capital, fee_bps, slip_bps):
         opening = bar["open"]
         target_long = index < end - 1 and (signals is None or signals[index])
         if target_long and quantity == 0:
-            price = opening * (1 + slip_rate)
+            price, _ = assumed_fill(opening, 0, 'BUY', fee_bps, slip_bps)
             quantity = math.floor(cash / (price * (1 + fee_rate)))
-            fee = quantity * price * fee_rate
+            _, fee = assumed_fill(opening, quantity, 'BUY', fee_bps, slip_bps)
             basis = quantity * price + fee
             cash -= basis
             fees += fee
             slippage += quantity * (price - opening)
         elif not target_long and quantity:
-            price = opening * (1 - slip_rate)
-            fee = quantity * price * fee_rate
+            price, fee = assumed_fill(opening, quantity, 'SELL', fee_bps, slip_bps)
             proceeds = quantity * price - fee
             cash += proceeds
             fees += fee
@@ -179,16 +179,19 @@ def evaluate(data):
     fingerprint = hashlib.sha256(canonical.encode()).hexdigest()
     closes = [bar["close"] for bar in bars]
     signals = [False] * 20 + [
-        math.fsum(closes[i-5:i]) * 4 > math.fsum(closes[i-20:i]) for i in range(20, len(bars))
+        target_long(closes[max(0, i-20):i]) for i in range(20, len(bars))
     ]
     count = len(bars)
     first, second, hold = (count * k // 10 for k in (6, 7, 8))
+    def data_hash(rows):
+        return hashlib.sha256(json.dumps([symbol, interval, rows], sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
     validation = [_window(bars, signals, a, b, capital, fees, slip)
                   for a, b in ((first, second), (second, hold))]
     holdout = _window(bars, signals, hold, count, capital, fees, slip)
     stressed = _window(bars, signals, hold, count, capital, 2 * fees, 2 * slip)
     return {
         **settings, "fingerprint": fingerprint, "completedBars": count,
+        "datasetFingerprint": data_hash(bars), "holdoutFingerprint": data_hash(bars[hold:]),
         "developmentBars": first, "validation": validation, "holdout": holdout,
         "stressHoldout": stressed, "stressCostBps": 2 * fees, "stressSlippageBps": 2 * slip,
         "status": "synthetic demonstration" if source == "synthetic" else "historical simulation",

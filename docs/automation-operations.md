@@ -1,6 +1,6 @@
 # Automation control room — implementation status
 
-Updated 2026-11-01 (India). The new UI and durable execution prototype are implemented; this is not a production automated trader.
+Updated 2026-11-18 (India). This is not a production automated trader. See the [current repair report](system-repair-2026-11-18.md) for the gap register and verified runbook. Manual live dispatch is now also blocked by server-side readiness; changing the environment flag alone cannot enable it.
 
 ## Implemented
 
@@ -8,12 +8,13 @@ Updated 2026-11-01 (India). The new UI and durable execution prototype are imple
 - Versioned validated configuration with user-entered symbols and financial limits. Blank defaults avoid inventing risk preferences. Each save is unapproved.
 - SQLite migration version 1: configuration, intent ledger and append-only application audit events. Default path `%LOCALAPPDATA%/TradeLabIndia/automation.sqlite`; override with TRADELAB_AUTOMATION_DB. Local Windows account permissions apply; encryption at rest and tamper-evident audit are not implemented.
 - Prototype order coordinator: serialized intent creation, durable duplicate key, pending exposure checks, ambiguous acceptance handling, partial/terminal state checks and restart disarming. Database transactions commit intent state before the mock submission.
-- Mock-only dispatch. No HTTP endpoint accepts signals, broker callbacks or live execution approvals. Manual order trading remains a separate pre-existing feature.
+- Mock-only coordinator dispatch. No HTTP endpoint accepts signals, broker callbacks or live execution approvals. A separate durable manual journal and read-only order/trade reconciliation surface now exist, but dispatch remains locked.
+- Shared mock cash, fees and inventory reservations serialize competing books. They retain reserves during uncertain/partial outcomes and block on external mismatch. These tables are not a real broker allocation ledger and are not connected to independent paper accounts.
 - Pause and stop disable new entries; neither claims to cancel or close broker positions. Start checks report blockers. Cancellation and flatten UI are visibly unavailable.
 
 ## Boundaries and missing work
 
-No production Kite automated execution adapter, automatic exit loop, feed-to-strategy scheduler, verified broker margin snapshot, static-IP validation, account ownership binding, durable approval workflow, automated cancellations/flattening, or actual broker reconciliation is implemented. The UI's ready/running transitions cannot be entered through the public API. Tests set running state explicitly for mock verification. Mock protocol checks are not protection for the manual order endpoint.
+No production Kite automated execution adapter, automatic exit loop, feed-to-strategy scheduler, verified broker margin snapshot, static-IP validation, strategy position ownership, durable strategy approval workflow, or automated cancellations/flattening is implemented. The manual journal binds to broker identity and checks order/trade evidence; it explicitly does not reconcile net position ownership. The UI's ready/running transitions cannot be entered through the public API. Tests set running state explicitly for mock verification. The manual endpoint has its own journal and hard readiness gate; the shared mock funding ledger does not protect it.
 
 SMA configuration is a draft specification; the existing synthetic strategy lab supplies an educational example. Changing financial limits does not prove the strategy profitable. No market-data retention rights are inferred.
 

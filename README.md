@@ -2,9 +2,13 @@
 
 ### An Indian-market research and trading workspace
 
+The home workspace now groups the product into **Intraday**, **Long-term**, and **Auto Trading**. Settings and advanced research remain available without filling the main navigation. See the [simple portal guide](docs/simple-portal.md). The previous control room is available at `/advanced`; existing paper and research records are preserved.
+
+New paper accounts can explicitly opt into **Intraday v1**: cost-aware sizing, modeled stop/target exits, volume-participation limits and observed-candle square-off. Legacy accounts keep their original behaviour. This is experimental imported-candle simulation; live dispatch and continuous feeds remain disconnected. See [intraday readiness and operations](docs/intraday-readiness.md).
+
 TradeLab brings market data, strategy evaluation, risk planning and reviewed manual orders into a local browser application. Built with Python, JavaScript and Zerodha Kite Connect, it makes the assumptions behind a trading idea visible—from the data used to the costs and risks modeled.
 
-**Status:** working research and manual-trading prototype. Automated live execution is planned; real-market profitability is unproven.
+**Status:** research and durable paper-trading prototype. Manual and automated live dispatch are locked pending integrated broker funding, ownership, risk and exit validation. Real-market profitability is unproven.
 
 [Get started](#quick-start) · [Features](#features) · [Evaluation](#strategy-evaluation) · [Roadmap](#roadmap) · [Documentation](#documentation)
 
@@ -17,6 +21,7 @@ TradeLab brings market data, strategy evaluation, risk planning and reviewed man
 - **Durable paper accounts:** imported-candle SMA replay with persisted fills, costs, duplicate protection and restart recovery. Continuous paper feeds are not connected.
 - **Source-aware analysis:** imported watchlist news, publication/availability timestamps, deduplication and structured earnings comparisons.
 - **Automation foundation:** versioned strategy drafts, a SQLite intent ledger and audit history. Automated live dispatch is not connected.
+- **Recovery and research evidence:** durable manual intent reconciliation, mock shared cash/share reservations, and a local experiment registry that flags repeated holdout viewing. These are separate components; they do not constitute a unified live execution system.
 
 ## Workflow
 
@@ -46,7 +51,9 @@ Open **http://127.0.0.1:8765**. Keep the server terminal running. The synthetic 
 2. Copy `.env.example` to `.env` if it does not already exist, then enter your API key and secret locally.
 3. Restart TradeLab and select **Connect Zerodha**. Complete authentication on the broker's own page.
 
-Live manual orders are disabled by default. Their explicit configuration and market-data requirements are covered in the [setup guide](docs/market-data-setup.md). Enabling manual orders does not enable automated strategies.
+Live orders are blocked by a server-side readiness gate as well as configuration. Setting `TRADELAB_ENABLE_LIVE_ORDERS=true` cannot unlock dispatch in this release. Read-only broker functions remain available after authentication. See the [current repair report and operating runbook](docs/system-repair-2026-11-18.md) before changing settings.
+
+A Kite Connect key connects to the broker; it is not an AI-model credential. No AI provider is connected, and no model controls funds or risk limits.
 
 ## Strategy evaluation
 
@@ -92,13 +99,19 @@ These milestones are planned capabilities, not shipped features or promised rele
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 node tests/account.test.js
+node tests/order-review.test.js
+node tests/research-display.test.js
 node --check web/trader.js
 node --check web/evaluation.js
 ```
 
-Latest local verification: **91 Python tests passed on 11 November 2026**, plus a separate HTTP fixture recovery run. The [checks workflow](.github/workflows/checks.yml) includes both. Live broker execution and production reliability are not established by those tests. See the [implementation log and backlog](docs/implementation-log.md).
+The [current repair report](docs/system-repair-2026-11-18.md) records the latest test results and browser checks. The [checks workflow](.github/workflows/checks.yml) runs Python and JavaScript regressions plus HTTP fixture recovery. These tests do not establish production readiness or profitability.
 
 Open `/trader-paper` for the separate persistent paper-account workflow. Creation requires your financial assumptions and permission to retain imported candles locally. Start enables ingestion; pause preserves pending intents; stop cancels unfilled local intents without closing positions. Restart pauses accounts. The original session-based paper approval tool remains separate.
+
+Use **Pause new entries** to keep running exit processing, or **Request simulated close** to queue an exit at the next accepted candle open. The latter pauses new entries and leaves exposure visible until a simulated fill. **Pause all ingestion** freezes exits too. These controls never act on broker positions.
+
+Evaluations run through the portal retain report summaries, settings and dataset/holdout fingerprints in a private SQLite registry, including unsuccessful results. Reusing a holdout is flagged even when costs change. Raw evaluation candles are not saved by this registry; paper imports have their own explicit retention permission. CLI-only evaluations are not registered.
 
 ## Repository map
 
@@ -110,6 +123,8 @@ Open `/trader-paper` for the separate persistent paper-account workflow. Creatio
 | `evaluation.py` | Fixed-rule evaluation and deterministic demo |
 | `research.py`, `validation_lab.py` | Research utilities and synthetic stress simulation |
 | `automation.py` | Strategy configuration, intent ledger and coordinator state |
+| `execution_journal.py` | Durable manual intent correlation and broker-evidence checks |
+| `strategy_contract.py`, `experiment_registry.py` | Shared signal/fill assumptions and research result provenance |
 | `web/` | Browser interface |
 | `tests/` | Offline regression tests |
 | `docs/` | Setup, feature contracts, evidence and limitations |
@@ -125,6 +140,8 @@ Open `/trader-paper` for the separate persistent paper-account workflow. Creatio
 | [Research implementation](docs/research-implementation.md) | Research methods and remaining validation work |
 | [News sources](docs/news-source-research.md) | Indian-market source discovery and research prompt |
 | [Architecture](docs/architecture.md) | Application structure and design context |
+| [Current repair report](docs/system-repair-2026-11-18.md) | Gap register, tests, recovery and remaining live blockers |
+| [Capability map](docs/feature-status.md) | Route-by-route implementation status |
 
 ## Safety and scope
 
@@ -132,7 +149,7 @@ TradeLab is a local, single-user prototype. It binds to loopback and keeps broke
 
 Keep credentials, account records and licensed market exports out of Git. No real market dataset is bundled. Imports require permission for the intended use; public accessibility does not imply redistribution rights.
 
-Historical simulations assume fills and costs. Liquidity, taxes, corporate actions, gaps and outages can materially change real outcomes. Five-minute evaluation may hold overnight and is not an intraday square-off simulation. News feeds and automatic filing ingestion remain disconnected; paper orders use hypothetical fills and a session-only book.
+Historical simulations assume fills and costs. Liquidity, taxes, corporate actions, gaps and outages can materially change real outcomes. Five-minute evaluation may hold overnight and is not an intraday square-off simulation. News feeds and automatic filing ingestion remain disconnected. The original paper-approval tool has a session-only book; `/trader-paper` uses a separate durable ledger with hypothetical fills.
 
 This project does not promise returns or loss-free trading and makes no investment-adviser or regulatory-approval claim. Its tests verify software behavior, not profitability or production readiness.
 

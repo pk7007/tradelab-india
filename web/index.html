@@ -60,9 +60,15 @@
           </div>
         </section>
 
+        <section class="notice" aria-label="Connection and trading readiness"><strong>Connection is not trading readiness</strong><p id="readiness-status" role="status">Checking local configuration. Live automation remains unavailable.</p></section>
         <div class="notice" id="notice" role="status" hidden></div>
         <div class="risk-banner" id="risk-banner"><span class="risk-icon">!</span><div><strong>Live trading is locked</strong><span>Orders are sent to your Zerodha account only after local setup, an order review, and explicit confirmation.</span></div><span class="lock-tag">DISABLED BY DEFAULT</span></div>
 
+        <section class="panel" aria-labelledby="execution-title">
+          <div class="panel-heading"><h2 id="execution-title">Manual order recovery</h2><button class="text-button" id="execution-refresh" type="button">Refresh journal</button></div>
+          <div class="market-form"><p id="execution-status" role="status">Connect to inspect this account's durable submission journal.</p><p>Order acknowledgements are not fills. Reconciliation compares recorded orders with broker order and trade evidence; it does not establish portfolio ownership or available capital. An unknown outcome must be investigated before retrying.</p><button class="button button-outline" id="execution-reconcile" type="button">Reconcile broker orders and trades</button></div>
+          <div class="table-wrap"><table><caption>Durable manual intents; separate from the mock automation ledger</caption><thead><tr><th>Instrument / product</th><th>Side</th><th>Filled / requested</th><th>State</th><th>Broker order</th><th>Evidence</th></tr></thead><tbody id="execution-rows"><tr><td colspan="6">No journal loaded.</td></tr></tbody></table></div>
+        </section>
         <section id="automation-workspace">
 <div class="auto-hero"><div><span class="eyebrow">CONTROL ROOM / ZERODHA</span><h2>Define the rules.<br>Stay in control.</h2><p>One place for strategy configuration, execution readiness and a durable audit trail.</p></div><div class="engine-badge"><span class="pulse-ring"></span><strong id="engine-state">DISABLED</strong><small>Live automation locked</small></div></div>
 <div class="auto-metrics"><article><span>STRATEGY VERSION</span><strong id="auto-version">Not configured</strong></article><article><span>EXECUTION MODE</span><strong>Disabled</strong></article><article><span>RECONCILIATION</span><strong id="auto-reconciled">Required</strong></article><article><span>INTENT LEDGER</span><strong id="auto-count">0</strong></article></div>
@@ -106,7 +112,7 @@
               <div class="confirmation" id="confirmation" hidden>
                 <div class="confirm-summary" id="confirm-summary"></div>
                 <label class="field confirm-field" id="confirm-field"><span>TYPE PLACE LIVE ORDER TO CONTINUE</span><input id="confirm-text" autocomplete="off" placeholder="PLACE LIVE ORDER"></label>
-                <div class="confirm-lock" id="confirm-lock" hidden>Order review only. To enable live submission, set <code>TRADELAB_ENABLE_LIVE_ORDERS=true</code> in your local .env file and restart TradeLab.</div>
+                <div class="confirm-lock" id="confirm-lock" hidden>Order review only. Live submission requires verified execution readiness and explicit enablement. A configured API key or environment switch alone is insufficient.</div>
                 <button class="button button-danger" id="place-order-button" type="button" disabled>Place live order <span>↗</span></button>
                 <button class="text-button cancel-confirm" id="cancel-confirm" type="button">Cancel review</button>
               </div>

@@ -40,6 +40,16 @@ class HistoricalTests(unittest.TestCase):
                     market.start_history('owner','no-token',{'symbols':'INFY','from':'2024-01-01','to':'2024-02-01','save':True})
             self.assertEqual(list(Path(folder).iterdir()),[])
 
+    def test_conflicting_duplicate_history_is_not_silently_replaced(self):
+        row = dict(date=dt.datetime(2024,1,1,tzinfo=IST),open=100,high=110,low=90,close=105,volume=20)
+        with self.assertRaisesRegex(ValueError, 'Conflicting'):
+            clean_candles([row, dict(row, close=106)])
+
+    def test_boolean_price_is_not_a_valid_market_observation(self):
+        row = dict(date=dt.datetime(2024,1,1,tzinfo=IST),open=True,high=110,low=1,close=105,volume=20)
+        with self.assertRaises(ValueError):
+            clean_candles([row])
+
     def test_jobs_are_private_and_payload_bounded(self):
         market=MarketData('not-a-real-key','unused')
         market.jobs['id']={'owner':'a','rows':{'INFY':[{'date':str(i)} for i in range(600)]},'cancel':False,'state':'complete'}

@@ -2,6 +2,14 @@
 const el = id => document.getElementById(id);
 const pct = x => x.toFixed(2) + '%';
 const signed = x => (x > 0 ? '+' : '') + x.toFixed(2);
+function researchReviewText(review) {
+  if (!review) return 'Research registry evidence unavailable. This result is not independently validated or approved for live promotion.';
+  const views=Number.isInteger(review.previousViews)&&review.previousViews>=0?review.previousViews:'unknown';
+  return 'Research run: '+String(review.runId||'unavailable')+'. Previous views: '+views+'. '+
+    (review.holdoutViewedBefore?'This holdout has been viewed before; repeated inspection is not independent evidence. ':'No previous holdout view recorded; this alone does not establish independent evidence. ')+
+    'Independent evidence: '+(review.independentEvidence===true?'reported by registry; review evidence':'not established')+'. '+
+    'Registry promotion: '+(review.promotionAllowed===true?'reported eligible; separate approval still required':'blocked')+'. Live trading is not enabled by this screen. '+String(review.reason||'Strategy validation and deployment approval remain required.');
+}
 function render(report) {
   el('report-type').textContent = report.source === 'synthetic' ? 'SYNTHETIC DEMONSTRATION' : 'USER-SUPPLIED HISTORICAL SIMULATION';
   el('report-title').textContent = report.symbol + ' · final test window';
@@ -19,6 +27,7 @@ function render(report) {
   el('interpretation').textContent = (report.source==='synthetic' ? 'These prices are invented. ' : 'These figures describe this file and these assumptions. ') +
     'The strategy finished '+ (h.excessReturnPct===0?'level with':h.excessReturnPct>0?'ahead of':'behind') +' buy-and-hold on the final window. ' +
     'It completed '+h.strategy.completedTrades+' round trips. This is not a forecast.';
+  el('research-review').textContent=researchReviewText(report.researchReview);
   el('method').textContent=report.method;el('limits').replaceChildren();
   for (const limit of report.limitations) { const li=document.createElement('li');li.textContent=limit;el('limits').append(li); }
   el('payload').textContent=JSON.stringify(report,null,2);el('report').hidden=false;

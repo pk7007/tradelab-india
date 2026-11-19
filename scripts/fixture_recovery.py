@@ -21,6 +21,9 @@ with LocalServer(('127.0.0.1',0),Handler) as server:
 @contextmanager
 def server(folder):
     env = dict(os.environ, TRADELAB_PAPER_DB=str(folder/'fixture.sqlite'),
+               TRADELAB_EXECUTION_DB=str(folder/'execution.sqlite'),
+               TRADELAB_RESEARCH_DB=str(folder/'research.sqlite'),
+               TRADELAB_PORTAL_DB=str(folder/'portal.sqlite'),
                TRADELAB_AUTOMATION_DB=str(folder/'automation.sqlite'),
                TRADELAB_DATA_DIR=str(folder/'data'), TRADELAB_ENABLE_LIVE_ORDERS='false',
                KITE_API_KEY='', KITE_API_SECRET='')
@@ -30,6 +33,16 @@ def server(folder):
         client = request.build_opener(request.ProxyHandler({}),request.HTTPCookieProcessor(CookieJar()))
         with client.open(root+'/trader-paper',timeout=5) as response:
             token=re.search(r'name="csrf-token" content="([^"]+)"',response.read().decode()).group(1)
+        for route in ('/', '/intraday', '/long-term', '/auto-trading', '/advanced', '/trader-evaluate'):
+            with client.open(root+route, timeout=5) as response:
+                page=response.read().decode()
+                assert response.status==200 and 'csrf-token' in page, route
+                if route in ('/', '/intraday', '/long-term', '/auto-trading'):
+                    assert '/portal.js' in page, route
+        with client.open(root+'/api/portal',timeout=5) as response:
+            portal=json.load(response)
+            assert portal['settings']['capital']==1000 and portal['settings']['maxLoss']==25
+            assert portal['settings']['dailyLossLimit']==100 and portal['liveEnabled'] is False
         def post(endpoint,**data):
             headers={'Content-Type':'application/json','Origin':root,'X-CSRF-Token':token}
             with client.open(request.Request(root+'/api/trader/paper-'+endpoint,json.dumps(data).encode(),headers),timeout=10) as response:

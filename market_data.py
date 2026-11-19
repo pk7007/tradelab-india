@@ -40,6 +40,8 @@ def clean_candles(rows):
         stamp = row['date']
         if stamp.tzinfo is None:
             raise ValueError('Broker candle timestamp has no timezone.')
+        if any(isinstance(row[k], bool) for k in ('open', 'high', 'low', 'close', 'volume')):
+            raise ValueError('Boolean values are invalid market observations.')
         vals = [float(row[k]) for k in ('open', 'high', 'low', 'close', 'volume')]
         if not all(math.isfinite(x) for x in vals) or min(vals[:4])<=0 or vals[2] > min(vals[0], vals[3]) or vals[1] < max(vals[0], vals[3]) or vals[4] < 0:
             raise ValueError('Invalid OHLCV data returned; job stopped without fabricating values.')
@@ -47,7 +49,10 @@ def clean_candles(rows):
         if oi is not None and (not math.isfinite(float(oi)) or float(oi)<0):
             raise ValueError('Invalid open interest returned.')
         key = stamp.astimezone(IST).isoformat()
-        candles[key] = {'date': key, **dict(zip(('open','high','low','close','volume'), vals)), 'oi': row.get('oi')}
+        candle = {'date': key, **dict(zip(('open','high','low','close','volume'), vals)), 'oi': row.get('oi')}
+        if key in candles and candles[key] != candle:
+            raise ValueError('Conflicting duplicate historical candle; inspect provider revisions before use.')
+        candles[key] = candle
     return sorted(candles.values(), key=lambda x:x['date'])
 
 

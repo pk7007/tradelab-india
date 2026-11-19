@@ -7,7 +7,7 @@ exit:['Exit Planner','Review your chosen entry, stop and target before consideri
 timemachine:['Time Machine','Sample 10,000 bootstrap paths and enumerate past setup matches in your imported history.','Sampled scenarios are not every possible outcome or a forecast. Historical replay is in-sample.'],
 risk:['Risk Manager','Check a planned trade against your capital, pending exposure and loss limits.','Uses your entered snapshot, not broker-reconciled exposure. It gates paper drafts only.'],
 budget:['Budget Manager','Calculate whole-unit position size from budget and modeled stop loss.','Includes user-entered costs and slippage. Taxes and gap risk are not fully modeled.'],
-broker:['Order Executor','Review a risk-checked paper order and approve it explicitly.','Paper only here. Live submission remains in the existing manual order screen.'],
+broker:['Order Executor','Review a risk-checked paper order and approve it explicitly.','Paper only here. Manual and automated live submission remain locked until execution readiness is verified.'],
 alerts:['Price Alerts','Check a threshold or monitor your existing private Kite stream while this page is open.','No closed-tab delivery. Stale streams are rejected; no automatic exits.'],
 analyst:['Earnings Analyst','Compare imported filing metrics, reporting periods and source evidence.','Structured JSON import; automatic PDF reading and filing ingestion are not connected.'],
 pelosi:['Congress Disclosure Tracker','Inspect imported U.S. congressional transaction disclosures and filing delays.','No live filing monitor. Filing time differs from trade time; this is separate from Indian market trading.']};

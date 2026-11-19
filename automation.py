@@ -51,6 +51,7 @@ class Coordinator:
             PRAGMA user_version=1;""")
             db.execute("UPDATE intents SET state='UNKNOWN',updated=? WHERE state='SUBMITTING'",(now(),))
             self.event(db,'startup','Disarmed. Reconcile before any execution; no automatic resume.')
+        self.funding = SharedReservations(self.path)
     @contextmanager
     def db(self):
         db=sqlite3.connect(self.path,timeout=10);db.row_factory=sqlite3.Row
@@ -74,7 +75,7 @@ class Coordinator:
             events=[dict(r) for r in db.execute('SELECT * FROM audit ORDER BY seq DESC LIMIT 60')]
         return dict(state=self.state,reconciled=self.reconciled,liveEnabled=False,
                     config=json.loads(cfg['body']) if cfg else None,version=cfg['version'] if cfg else None,
-                    intents=intents,events=events,blockers=['Exact strategy and limits require your approval.',
+                    intents=intents,events=events,funding=self.funding.status(),blockers=['Exact strategy and limits require your approval.',
                     'Production broker execution adapter and supervised readiness validation remain incomplete.',
                     'Registered static IP and broker requirements must be verified.'])
     def control(self,action):
@@ -111,6 +112,10 @@ class Coordinator:
             cutoff=(dt.datetime.now(dt.timezone.utc)-dt.timedelta(minutes=1)).isoformat()
             if db.execute('SELECT COUNT(*) FROM intents WHERE created>=?',(cutoff,)).fetchone()[0]>=c['ordersPerMinute']:raise ValueError('Order frequency limit.')
             identity=hashlib.sha256((str(version)+':'+signal).encode()).hexdigest()[:20]
+            account = snapshot.get('fundingAccount', 'offline-default')
+            if account == 'offline-default':
+                db.execute('INSERT OR IGNORE INTO funding_accounts VALUES(?,?,0)', (account,SharedReservations.paise(snapshot['available'],round_up=False)))
+            SharedReservations.reserve_in(db,identity,account,str(snapshot.get('book','intraday')),c['exchange']+':'+symbol+':'+c['product'],'BUY',quantity,max(value,snapshot['marginRequired']),snapshot.get('estimatedFees',0))
             try:db.execute('INSERT INTO intents VALUES(?,?,?,?,?,?,?,?,?,?,?)',(identity,version,symbol,'BUY',quantity,price,'PREPARED',None,0,now(),now()))
             except sqlite3.IntegrityError:raise ValueError('Duplicate intent.') from None
             self.event(db,'intent-prepared',identity)
@@ -118,25 +123,54 @@ class Coordinator:
     def submit_mock(self,identity,broker):
         if getattr(broker,'mode',None)!='offline-mock':raise ValueError('Production submission is disabled.')
         with self.lock,self.db() as db:
+            db.execute('BEGIN IMMEDIATE')
             if self.state!='running' or not self.reconciled:raise ValueError('Not running or unreconciled.')
             row=db.execute('SELECT * FROM intents WHERE id=?',(identity,)).fetchone()
             if not row or row['state']!='PREPARED':raise ValueError('Intent not eligible for submission.')
             latest=db.execute('SELECT MAX(version) FROM config').fetchone()[0]
             if row['version']!=latest:raise ValueError('Intent belongs to an obsolete strategy version.')
+            # Re-read durable funding under the same write lock as the claim:
+            # another process may have detected a mismatch after preparation.
+            reservation=db.execute('SELECT r.*,a.blocked AS account_blocked,a.cash AS account_cash FROM funding_reservations r JOIN funding_accounts a ON a.account=r.account WHERE r.id=?',(identity,)).fetchone()
+            if (not reservation or reservation['state']!='ACTIVE' or reservation['account_blocked']
+                    or reservation['side']!=row['side'] or reservation['units']!=row['quantity'] or reservation['filled']!=0):
+                raise ValueError('Active reconciled funding reservation required before submission.')
+            held=db.execute("SELECT COALESCE(SUM(cash+fees),0) FROM funding_reservations WHERE account=? AND state='ACTIVE'",(reservation['account'],)).fetchone()[0]
+            if held>reservation['account_cash']:
+                raise ValueError('Funding changed after preparation; reconcile before submission.')
+            if db.execute("SELECT 1 FROM intents WHERE id!=? AND state IN ('UNKNOWN','SUBMITTING')",(identity,)).fetchone():
+                raise ValueError('Uncertain order must be reconciled before submission.')
             db.execute("UPDATE intents SET state='SUBMITTING',updated=? WHERE id=?",(now(),identity))
         try:
             broker_id=broker.submit(dict(row))
             if not broker_id:raise ValueError('Missing broker order id')
         except Exception:
             with self.lock,self.db() as db:
-                db.execute("UPDATE intents SET state='UNKNOWN',updated=? WHERE id=?",(now(),identity))
+                db.execute('BEGIN IMMEDIATE')
+                # A delayed transport failure cannot erase broker evidence that
+                # arrived via reconciliation while submit was in flight.
+                db.execute("UPDATE intents SET state='UNKNOWN',updated=? WHERE id=? AND state='SUBMITTING'",(now(),identity))
                 self.state='faulted';self.reconciled=False;self.event(db,'submission-unknown',identity)
             return
         with self.lock,self.db() as db:
-            db.execute("UPDATE intents SET state='OPEN',broker_id=?,updated=? WHERE id=?",(str(broker_id),now(),identity))
-            self.event(db,'mock-submitted',identity)
+            db.execute('BEGIN IMMEDIATE')
+            current=db.execute('SELECT * FROM intents WHERE id=?',(identity,)).fetchone()
+            if current['broker_id'] and current['broker_id'] != str(broker_id):
+                if current['state'] not in TERMINAL:
+                    db.execute("UPDATE intents SET state='UNKNOWN',updated=? WHERE id=?",(now(),identity))
+                db.execute('UPDATE funding_accounts SET blocked=1')
+                self.state='faulted';self.reconciled=False
+                self.event(db,'acknowledgement-id-mismatch',identity)
+            else:
+                # ACK establishes acceptance only; preserve partial, terminal,
+                # or previously uncertain reconciliation states and fill counts.
+                db.execute("UPDATE intents SET state=CASE WHEN state='SUBMITTING' THEN 'OPEN' ELSE state END,broker_id=COALESCE(broker_id,?),updated=? WHERE id=?",(str(broker_id),now(),identity))
+                self.event(db,'mock-submitted',identity)
     def reconcile_mock(self,updates,external_mismatch=False):
         with self.lock,self.db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            if external_mismatch:
+                db.execute('UPDATE funding_accounts SET blocked=1')
             for update in updates:
                 row=db.execute('SELECT * FROM intents WHERE id=?',(update['id'],)).fetchone()
                 if not row:external_mismatch=True;continue
@@ -155,9 +189,135 @@ class Coordinator:
                     raise ValueError('Fill quantity conflicts with order state.')
                 if state=='COMPLETE' and filled!=row['quantity']:raise ValueError('Incomplete fill cannot be complete.')
                 if row['state'] in TERMINAL and (state!=row['state'] or filled!=row['filled']):raise ValueError('Terminal state regression.')
+                SharedReservations.settle_in(db,row['id'],state,filled)
                 db.execute('UPDATE intents SET state=?,filled=?,broker_id=?,updated=? WHERE id=?',(state,filled,update.get('broker_id',row['broker_id']),now(),row['id']))
             unresolved=db.execute("SELECT 1 FROM intents WHERE state IN ('SUBMITTING','UNKNOWN','PREPARED')").fetchone()
-            self.reconciled=not unresolved and not external_mismatch
+            if external_mismatch:
+                db.execute('UPDATE funding_accounts SET blocked=1')
+            funding_blocked = db.execute('SELECT 1 FROM funding_accounts WHERE blocked=1').fetchone()
+            self.reconciled=not unresolved and not external_mismatch and not funding_blocked
             if not self.reconciled:self.state='faulted'
             self.event(db,'mock-reconciled','Matched' if self.reconciled else 'Uncertainty or external mismatch; disarmed.')
         return self.status()
+
+class SharedReservations:
+    """Offline shared funding ledger. Monetary amounts are integer paise.
+
+    One database must be shared by all books using the same funding account.
+    Snapshot replacement is explicit and blocked while reservations are active.
+    This is not a broker adapter or proof of production reconciliation.
+    """
+    def __init__(self, path):
+        self.path = Path(path)
+        with self.db() as db:
+            self.schema(db)
+
+    @contextmanager
+    def db(self):
+        db = sqlite3.connect(self.path, timeout=10)
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
+
+    @staticmethod
+    def schema(db):
+        db.executescript('''
+        CREATE TABLE IF NOT EXISTS funding_accounts(account TEXT PRIMARY KEY, cash INTEGER NOT NULL, blocked INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE IF NOT EXISTS funding_inventory(account TEXT NOT NULL, instrument TEXT NOT NULL, units INTEGER NOT NULL, PRIMARY KEY(account,instrument));
+        CREATE TABLE IF NOT EXISTS funding_reservations(id TEXT PRIMARY KEY, account TEXT NOT NULL, book TEXT NOT NULL, instrument TEXT NOT NULL, side TEXT NOT NULL, units INTEGER NOT NULL, cash INTEGER NOT NULL, fees INTEGER NOT NULL, state TEXT NOT NULL, filled INTEGER NOT NULL DEFAULT 0);
+        ''')
+
+    @staticmethod
+    def paise(value, round_up=True):
+        from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
+        amount = Decimal(str(value))
+        if not amount.is_finite() or amount < 0:
+            raise ValueError('Invalid funding amount.')
+        return int((amount * 100).to_integral_value(rounding=ROUND_CEILING if round_up else ROUND_FLOOR))
+
+    def reconcile(self, account, cash, inventory, external_mismatch=False):
+        """Apply an explicitly supplied mock balance; never infer broker truth."""
+        amount = self.paise(cash,round_up=False)
+        if not account or any(type(v) is not int or v < 0 for v in inventory.values()):
+            raise ValueError('Invalid funding snapshot.')
+        with self.db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            active = db.execute("SELECT 1 FROM funding_reservations WHERE account=? AND state='ACTIVE'", (account,)).fetchone()
+            if external_mismatch or active:
+                db.execute('INSERT INTO funding_accounts VALUES(?,?,1) ON CONFLICT(account) DO UPDATE SET blocked=1', (account, amount))
+                return False
+            db.execute('INSERT INTO funding_accounts VALUES(?,?,0) ON CONFLICT(account) DO UPDATE SET cash=excluded.cash,blocked=0', (account, amount))
+            db.execute('DELETE FROM funding_inventory WHERE account=?', (account,))
+            db.executemany('INSERT INTO funding_inventory VALUES(?,?,?)', [(account,k,v) for k,v in inventory.items()])
+            return True
+
+    @classmethod
+    def reserve_in(cls, db, identity, account, book, instrument, side, units, value, fees=0):
+        if any(not isinstance(v,str) or not v.strip() for v in (identity,account,book,instrument)):
+            raise ValueError('Reservation identity and scope are required.')
+        if side not in ('BUY','SELL') or type(units) is not int or units <= 0:
+            raise ValueError('Invalid reservation.')
+        cash, fee = cls.paise(value), cls.paise(fees)
+        row = db.execute('SELECT cash,blocked FROM funding_accounts WHERE account=?', (account,)).fetchone()
+        if row is None or row[1]:
+            raise ValueError('Shared funding account requires reconciliation.')
+        reserved = db.execute("SELECT COALESCE(SUM(cash+fees),0) FROM funding_reservations WHERE account=? AND state='ACTIVE'", (account,)).fetchone()[0]
+        required = cash if side == 'BUY' else 0
+        if required + fee + reserved > row[0]:
+            raise ValueError('Shared cash reservation exceeds available funds including fees.')
+        if side == 'SELL':
+            stock = db.execute('SELECT units FROM funding_inventory WHERE account=? AND instrument=?', (account,instrument)).fetchone()
+            held = db.execute("SELECT COALESCE(SUM(units),0) FROM funding_reservations WHERE account=? AND instrument=? AND side='SELL' AND state='ACTIVE'", (account,instrument)).fetchone()[0]
+            if units + held > (stock[0] if stock else 0):
+                raise ValueError('Shared inventory already reserved or unavailable.')
+        try:
+            db.execute('INSERT INTO funding_reservations VALUES(?,?,?,?,?,?,?,?,?,0)', (identity,account,book,instrument,side,units,required,fee,'ACTIVE'))
+        except sqlite3.IntegrityError:
+            raise ValueError('Duplicate funding reservation.') from None
+
+    def reserve(self, identity, account, book, instrument, side, units, value, fees=0):
+        with self.db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            self.reserve_in(db,identity,account,book,instrument,side,units,value,fees)
+
+    @staticmethod
+    def settle_in(db, identity, state, filled):
+        row = db.execute('SELECT account,instrument,side,units,cash,fees,state,filled FROM funding_reservations WHERE id=?', (identity,)).fetchone()
+        if not row:
+            return
+        if type(filled) is not int or not row[7] <= filled <= row[3]:
+            raise ValueError('Regressive reservation fill.')
+        if state not in (*ACTIVE,*TERMINAL):
+            raise ValueError('Invalid settlement state.')
+        if (state == 'COMPLETE' and filled != row[3]) or (state in ('OPEN','REJECTED','PREPARED') and filled) or (state == 'PARTIAL' and not 0 < filled < row[3]):
+            raise ValueError('Settlement state conflicts with fill quantity.')
+        if row[6] != 'ACTIVE':
+            if state != row[6] or filled != row[7]:
+                raise ValueError('Terminal reservation regression.')
+            return
+        if state not in TERMINAL:
+            # Keep the entire reservation through unknown and partial outcomes.
+            db.execute('UPDATE funding_reservations SET filled=? WHERE id=?', (filled,identity))
+            return
+        # Conservative modeled debit. Actual execution price and fees must be
+        # reconciled explicitly before another order is admitted after a fill.
+        consumed = ((row[4] * filled + row[3] - 1) // row[3]) + (row[5] if filled else 0)
+        db.execute('UPDATE funding_accounts SET cash=cash-?,blocked=MAX(blocked,?) WHERE account=?', (consumed,int(filled>0),row[0]))
+        if row[2] == 'SELL':
+            db.execute('UPDATE funding_inventory SET units=units-? WHERE account=? AND instrument=?', (filled,row[0],row[1]))
+        db.execute('UPDATE funding_reservations SET state=?,filled=? WHERE id=?', (state,filled,identity))
+
+    def settle(self, identity, state, filled):
+        if state not in (*ACTIVE,*TERMINAL):
+            raise ValueError('Invalid settlement state.')
+        with self.db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            self.settle_in(db,identity,state,filled)
+
+    def status(self):
+        with self.db() as db:
+            db.row_factory = sqlite3.Row
+            return {'accounts':[dict(r) for r in db.execute('SELECT * FROM funding_accounts')],
+                    'reservations':[dict(r) for r in db.execute('SELECT * FROM funding_reservations')]}

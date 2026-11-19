@@ -6,6 +6,8 @@ The app uses a single-user Python HTTP server, the official Kite Connect SDK, an
 
 ## Proposed boundaries
 
+Current persistence and execution boundaries are detailed in the [18 November repair report](system-repair-2026-11-18.md). `paper.py` has a durable independent simulation ledger; `automation.py` has a separate mock execution/reservation ledger; `execution_journal.py` correlates manual intents with broker evidence; `experiment_registry.py` retains portal research summaries and holdout fingerprints. These are not yet unified into a broker-funded multi-portfolio system.
+
 - **Presentation:** local dashboard for account, holdings, positions, order book, and a manual order review flow.
 - **Broker adapter:** Zerodha Kite Connect server-side requests; broker credentials are never sent to the browser.
 - **Simulation service:** future deterministic calculations over fixed, versioned inputs, kept distinct from live brokerage state.
@@ -15,7 +17,7 @@ The app uses a single-user Python HTTP server, the official Kite Connect SDK, an
 
 ## Trust and safety boundaries
 
-The app binds to loopback, keeps access tokens in memory, and hides live order submission unless explicitly enabled by local configuration. Each order has a review and typed confirmation step; no automated strategy or background execution is implemented. Keep synthetic demos distinct from historical data. Fail visibly on source or data errors. Every calculation should expose its assumptions and version. The digest workflow is gated and must not publish externally.
+The app binds to loopback, keeps access tokens in memory, and blocks live order dispatch with a server-side readiness gate in addition to local configuration. A flag or API key alone cannot unlock it. Reviewed order validation and durable recovery are exercised with mocks; no live strategy scheduler is connected. Keep synthetic demos distinct from historical data. Fail visibly on source or data errors. Every calculation should expose its assumptions and version. The digest workflow is gated and must not publish externally.
 
 ## Future decision gate
 

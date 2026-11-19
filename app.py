@@ -11,6 +11,7 @@ import math
 import os
 import secrets
 import socket
+import sqlite3
 import threading
 import time
 import urllib.error
@@ -24,6 +25,8 @@ WEB = ROOT / "web"
 KITE_API = "https://api.kite.trade"
 SESSIONS: dict[str, dict[str, Any]] = {}
 LOCK = threading.RLock()
+SESSION_IDLE_SECONDS = 1800
+MAX_SESSIONS = 128
 
 
 def load_dotenv() -> None:
@@ -44,9 +47,17 @@ API_KEY = os.environ.get("KITE_API_KEY", "").strip()
 API_SECRET = os.environ.get("KITE_API_SECRET", "").strip()
 REDIRECT_URL = os.environ.get("KITE_REDIRECT_URL", "http://127.0.0.1:8765/auth/kite/callback").strip()
 LIVE_ORDERS_ENABLED = os.environ.get("TRADELAB_ENABLE_LIVE_ORDERS", "false").strip().lower() == "true"
+LIVE_EXECUTION_READY = False  # Shared broker cash/inventory and exit reconciliation are not integrated.
+LIVE_READINESS_REASON = "Live execution is blocked pending shared broker cash/inventory, approved risk limits, and exit reconciliation integration."
 from trader_suite import TOOLS, dispatch
+from portal import Portal
+PORTAL = Portal(Path(os.environ.get('TRADELAB_PORTAL_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'portal.sqlite'))))
 from paper import PaperEngine
 PAPER = PaperEngine(Path(os.environ.get('TRADELAB_PAPER_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'paper.sqlite'))))
+from execution_journal import ExecutionJournal
+from experiment_registry import ExperimentRegistry
+EXPERIMENTS = ExperimentRegistry(Path(os.environ.get('TRADELAB_RESEARCH_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'research.sqlite'))))
+EXECUTION = ExecutionJournal(Path(os.environ.get("TRADELAB_EXECUTION_DB", str(Path(os.environ.get("LOCALAPPDATA", str(ROOT / "data" / "private"))) / "TradeLabIndia" / "execution.sqlite"))))
 from automation import Coordinator
 AUTOMATION = Coordinator(Path(os.environ.get("TRADELAB_AUTOMATION_DB", str(Path(os.environ.get("LOCALAPPDATA", str(ROOT / "data" / "private"))) / "TradeLabIndia" / "automation.sqlite"))))
 from market_data import MarketData, synthetic_research
@@ -76,19 +87,14 @@ def kite_request(path: str, token: str, *, method: str = "GET", form: dict[str, 
         with urllib.request.urlopen(request, timeout=15) as response:
             payload = json.loads(response.read(2_000_000).decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        try:
-            payload = json.loads(exc.read(64_000).decode("utf-8"))
-            message = payload.get("message") or payload.get("error_type") or "Broker request failed"
-        except Exception:
-            message = f"Broker request failed with HTTP {exc.code}"
+        # Provider bodies may echo account details, request URLs, or credentials.
         if exc.code == 403:
             raise KiteSessionExpired("Broker session expired. Reconnect Zerodha.") from None
-        raise KiteError(message) from None
+        raise KiteError(f"Broker request failed with HTTP {exc.code}. Check connection and broker status.") from None
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
         raise KiteError(f"Could not reach Kite Connect: {type(exc).__name__}") from None
     if not isinstance(payload, dict) or payload.get("status") != "success":
-        message = payload.get("message", "Broker returned an unsuccessful response") if isinstance(payload, dict) else "Invalid broker response"
-        raise KiteError(str(message))
+        raise KiteError("Broker returned an unsuccessful or invalid response. Check the broker account directly.")
     return payload
 
 
@@ -167,9 +173,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 session_id = value
                 break
         with LOCK:
+            now = time.monotonic()
+            for identity, existing in list(SESSIONS.items()):
+                if now - existing.get("last_seen", 0) >= SESSION_IDLE_SECONDS:
+                    existing.clear()  # Revoke credentials held by in-flight references too.
+                    del SESSIONS[identity]
             if session_id not in SESSIONS:
+                while len(SESSIONS) >= MAX_SESSIONS:
+                    oldest = min(SESSIONS, key=lambda identity: SESSIONS[identity].get("last_seen", 0))
+                    SESSIONS.pop(oldest).clear()
                 session_id = secrets.token_urlsafe(32)
                 SESSIONS[session_id] = {"csrf": secrets.token_urlsafe(32), "submitted": set()}
+            SESSIONS[session_id]["last_seen"] = now
             return session_id, SESSIONS[session_id]
 
     def send_bytes(self, status: int, content: bytes, content_type: str, *, extra_headers: list[tuple[str, str]] | None = None) -> None:
@@ -224,7 +239,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if origin and origin != expected_origin:
             raise PermissionError("Request origin was rejected.")
         supplied = self.headers.get("X-CSRF-Token", "")
-        if not supplied or not hmac.compare_digest(supplied, session["csrf"]):
+        if not supplied or not hmac.compare_digest(supplied, session.get("csrf", "")):
             raise PermissionError("Session check failed. Refresh the page and try again.")
         return session_id, session
 
@@ -245,10 +260,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self.valid_host(): return
         parsed = urllib.parse.urlparse(self.path)
         route = parsed.path
-        if route in {"/", "/index.html", "/trader-evaluate", "/trader-paper"} or route.removeprefix("/trader-") in TOOLS:
+        if route in {"/", "/index.html", "/intraday", "/long-term", "/auto-trading", "/advanced", "/trader-evaluate", "/trader-paper"} or route.removeprefix("/trader-") in TOOLS:
             session_id, session = self.session()
             template = "evaluation.html" if route == "/trader-evaluate" else ("trader.html" if route.startswith("/trader-") else "index.html")
             if route == '/trader-paper': template = 'paper.html'
+            if route in {'/', '/index.html', '/intraday', '/long-term', '/auto-trading'}: template = 'portal.html'
             page = (WEB / template).read_text(encoding="utf-8").replace("__CSRF_TOKEN__", session["csrf"])
             cookie = f"tradelab_session={session_id}; HttpOnly; SameSite=Lax; Path=/"
             self.send_bytes(200, page.encode(), "text/html; charset=utf-8", extra_headers=[("Set-Cookie", cookie)])
@@ -256,7 +272,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if route == "/auth/kite/callback":
             self.kite_callback(urllib.parse.parse_qs(parsed.query))
             return
-        if route in {"/app.js", "/market.js", "/automation.js", "/account.js", "/trader.js", "/trader.css", "/evaluation.js", "/evaluation.css", "/paper.js", "/styles.css"}:
+        if route in {"/portal.js", "/portal.css", "/app.js", "/market.js", "/automation.js", "/account.js", "/trader.js", "/trader.css", "/evaluation.js", "/evaluation.css", "/paper.js", "/styles.css"}:
             file_name = route[1:]
             mime = "text/javascript; charset=utf-8" if file_name.endswith(".js") else "text/css; charset=utf-8"
             try:
@@ -271,13 +287,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def api_get(self, route: str, query: dict[str, list[str]]) -> None:
         session_id, session = self.session()
+        if route == '/api/portal':
+            try: self.json_response(200, PORTAL.status())
+            except (sqlite3.Error, OSError): self.error(503, 'Portal storage is unavailable.')
+            return
         if route == "/api/status":
             self.json_response(200, {
                 "connected": bool(session.get("access_token")),
                 "profile": session.get("profile"),
-                "liveOrdersEnabled": LIVE_ORDERS_ENABLED,
+                "liveOrdersEnabled": LIVE_ORDERS_ENABLED and LIVE_EXECUTION_READY,
+                "liveOrdersConfigured": LIVE_ORDERS_ENABLED,
+                "liveExecutionReady": LIVE_EXECUTION_READY,
+                "liveReadinessReason": LIVE_READINESS_REASON,
                 "credentialsConfigured": bool(API_KEY and API_SECRET),
-                "csrf": session["csrf"],
+                "csrf": session.get("csrf", ""),
                 "dataStorageEnabled": os.environ.get('KITE_DATA_STORAGE_APPROVED','false').lower() == 'true',
             })
             return
@@ -297,6 +320,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 payload = kite_request("/portfolio/positions", token)
             elif route == "/api/orders":
                 payload = kite_request("/orders", token)
+            elif route == "/api/orders/execution":
+                account = EXECUTION.account(session.get("profile"))
+                self.json_response(200, {"intents": EXECUTION.list(account), "scope": "manual", "automatedLiveEnabled": False}); return
             elif route == "/api/quote":
                 instrument = (query.get("i") or [""])[0].strip().upper()
                 if ":" not in instrument or len(instrument) > 60 or any(char not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:&-_" for char in instrument):
@@ -335,6 +361,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except ValueError as exc:
             self.error(400, str(exc))
             return
+        if route.startswith('/api/portal/'):
+            try:
+                if route == '/api/portal/settings': result = PORTAL.update(values)
+                elif route == '/api/portal/research': result = PORTAL.research(values)
+                else: raise ValueError('Unknown portal action.')
+                self.json_response(200, result)
+            except (ValueError,TypeError,KeyError,OverflowError) as exc: self.error(400,str(exc))
+            except (sqlite3.Error,OSError): self.error(503,'Portal storage is unavailable.')
+            return
         if route.startswith('/api/trader/'):
             action=route.rsplit('/',1)[-1]
             try:
@@ -349,11 +384,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     elif action=='paper-bars': result=PAPER.ingest(values.get('id'),values.get('bars'),values.get('permitted'))
                     else: raise ValueError('Unknown paper action.')
                     self.json_response(200,result); return
+                if action == 'evaluate-intraday':
+                    from intraday_evaluation import evaluate_intraday
+                    self.json_response(200, evaluate_intraday(values)); return
                 if route == '/api/trader/evaluate':
                     from evaluation import demo_request, evaluate
                     if 'demo' in values and (len(values) != 1 or values['demo'] is not True):
                         raise ValueError('The demo takes only {"demo": true}. Use the import form for other inputs.')
                     report = evaluate(demo_request() if 'demo' in values else values)
+                    report['researchReview'] = EXPERIMENTS.record(report)
                     self.json_response(200, report); return
                 if action=='approve':
                     with LOCK:
@@ -391,6 +430,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.json_response(200,result)
             except (ValueError,TypeError,KeyError,OverflowError) as exc:
                 self.error(400,str(exc))
+            except (sqlite3.Error, OSError):
+                self.error(503, "Local data storage is unavailable. Processing stopped; inspect storage and reconcile before retrying.")
             return
         if route.startswith('/api/automation/'):
             try:
@@ -401,6 +442,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.json_response(200,result)
             except (ValueError,TypeError,OverflowError) as exc:
                 self.error(400,str(exc))
+            except (sqlite3.Error, OSError):
+                self.error(503, "Automation storage is unavailable. No execution was started.")
             return
         if route == "/api/connect":
             self.begin_kite_login(session)
@@ -438,6 +481,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.error(400,str(exc))
             except Exception as exc:
                 self.error(502,'Market request failed ('+type(exc).__name__+'). Check login, dependency installation, and subscription.')
+        elif route == "/api/orders/reconcile":
+            try:
+                with LOCK:
+                    token = self.connected_token(session)
+                    account = EXECUTION.account(session.get("profile"))
+                orders = kite_request("/orders", token).get("data")
+                trades = kite_request("/trades", token).get("data")
+                if session.get("access_token") != token:
+                    raise ValueError("Broker session changed during reconciliation.")
+                self.json_response(200, {"intents": EXECUTION.reconcile(account, orders, trades), "positionsReconciled": False})
+            except (ValueError, PermissionError) as exc:
+                self.error(409, str(exc))
+            except KiteSessionExpired:
+                session.pop("access_token", None)
+                session.pop("profile", None)
+                self.error(401, "Broker session expired. Reconnect; unresolved intents are preserved.")
+            except KiteError:
+                self.error(502, "Broker reconciliation failed. Existing intents remain unresolved.")
+            except Exception:
+                self.error(503, "Reconciliation journal unavailable. Do not submit new orders.")
         elif route == "/api/orders/preview":
             try:
                 normalized = validate_order(values)
@@ -451,7 +514,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 login = session.get('access_token') or ''
                 reviews[confirmation_id]={'order':normalized,'created':time.monotonic(),
                                           'loginDigest':hashlib.sha256(login.encode()).digest()}
-            self.json_response(200, {"order": normalized, "confirmationId":confirmation_id, "live": LIVE_ORDERS_ENABLED, "requiresConfirmation": True})
+            self.json_response(200, {"order": normalized, "confirmationId":confirmation_id, "live": LIVE_ORDERS_ENABLED and LIVE_EXECUTION_READY, "requiresConfirmation": True})
         elif route == "/api/orders/place":
             self.place_order(session, values)
         else:
@@ -463,6 +526,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         state = secrets.token_urlsafe(24)
         session["oauth_state"] = state
+        session["oauth_created"] = time.monotonic()
         params = urllib.parse.urlencode({
             "v": "3",
             "api_key": API_KEY,
@@ -473,10 +537,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def kite_callback(self, query: dict[str, list[str]]) -> None:
         _, session = self.session()
         state = (query.get("state") or [""])[0]
-        expected = session.pop("oauth_state", "")
+        with LOCK:
+            expected = session.pop("oauth_state", "")
+            created = session.pop("oauth_created", None)
         request_token = (query.get("request_token") or [""])[0]
         status = (query.get("status") or [""])[0]
-        if not expected or not state or not hmac.compare_digest(str(expected), state):
+        if created is None or not 0 <= time.monotonic()-created <= 600 or not expected or not state or not hmac.compare_digest(str(expected), state):
             self.redirect("/?notice=login_state_error")
             return
         if status != "success" or not request_token or not API_KEY or not API_SECRET:
@@ -495,9 +561,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 payload = json.loads(response.read(256_000).decode("utf-8"))
             if payload.get("status") != "success" or not payload.get("data", {}).get("access_token"):
                 raise KiteError("Kite Connect did not return an access token.")
-            session["access_token"] = payload["data"]["access_token"]
             profile = payload["data"]
-            session["profile"] = {key: profile.get(key) for key in ("user_id", "user_name", "user_shortname", "email", "broker", "login_time")}
+            with LOCK:
+                session["access_token"] = profile["access_token"]
+                session["profile"] = {key: profile.get(key) for key in ("user_id", "user_name", "user_shortname", "email", "broker", "login_time")}
             self.redirect("/?notice=connected")
         except Exception:
             # Never put request tokens, access tokens, or API secrets in the page or logs.
@@ -506,6 +573,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def place_order(self, session: dict[str, Any], values: dict[str, Any]) -> None:
         if not LIVE_ORDERS_ENABLED:
             self.error(403, "Live orders are disabled. Set TRADELAB_ENABLE_LIVE_ORDERS=true in .env and restart only after reviewing broker requirements.")
+            return
+        if not LIVE_EXECUTION_READY:
+            self.error(403, LIVE_READINESS_REASON)
             return
         try:
             token = self.connected_token(session)
@@ -532,19 +602,38 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.error(409,'Order review expired or changed. Review the exact order again.'); return
             if len(submitted)>=500:
                 self.error(409,'Session order limit reached. Check broker orders and reconnect.'); return
+            try:
+                account = EXECUTION.account(session.get("profile"))
+                intent = EXECUTION.prepare(account, confirmation_id, order, hashlib.sha256(token.encode()).digest())
+            except ValueError as exc:
+                self.error(409, str(exc)); return
+            except Exception:
+                self.error(503, "Execution journal unavailable. No order was sent."); return
             submitted.add(confirmation_id)
             session['reviews'].pop(confirmation_id,None)
         try:
-            result = kite_request("/orders/regular", token, method="POST", form=order)
+            result = kite_request("/orders/regular", token, method="POST", form=dict(order, tag=intent["tag"]))
         except KiteError:
+            try:
+                EXECUTION.acknowledgement(intent["id"])
+            except Exception:
+                pass  # Durable SUBMITTING still blocks re-submission after a write failure.
             self.error(502, "Submission outcome is uncertain. Do not retry until you check the Zerodha order book and trades. This review cannot be reused.")
             return
         response_data = result.get("data")
         order_id = response_data.get("order_id") if isinstance(response_data, dict) else None
         if not isinstance(order_id, str) or not order_id.strip():
+            try:
+                EXECUTION.acknowledgement(intent["id"])
+            except Exception:
+                pass  # Durable SUBMITTING still blocks re-submission after a write failure.
             self.error(502, "Broker acknowledgement has no order ID. Outcome unknown. Check the order book and trades before submitting again.")
             return
-        self.json_response(200, {"ok": True, "orderId": order_id, "message": "The broker accepted the order request. Check the order book for its current status."})
+        try:
+            EXECUTION.acknowledgement(intent["id"], order_id)
+        except Exception:
+            self.error(503, "Broker replied but journal update failed. Do not retry; reconcile the durable submission."); return
+        self.json_response(200, {"ok": True, "intentId": intent["id"], "orderId": order_id, "message": "The broker accepted the order request. Check the order book for its current status."})
 
 
 class LocalServer(http.server.ThreadingHTTPServer):

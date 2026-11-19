@@ -47,7 +47,19 @@ async function api(path, options = {}) {
 function connectState(status) {
   connected = status.connected;
   liveOrdersEnabled = status.liveOrdersEnabled;
-  if(!connected)resetAccount();
+  $('#readiness-status').textContent = [
+    'Credentials: '+(status.credentialsConfigured?'configured':'missing'),
+    'Session: '+(status.connected?'token present; broker requests validate it':'disconnected'),
+    'Data freshness: check Market data',
+    'Broker reconciliation: not established by login',
+    'Paper: isolated simulation accounts',
+    'Live automation: unavailable',
+    'Manual live orders: '+(status.liveOrdersEnabled?'enabled; explicit confirmation required':'locked'),
+    'Live readiness: '+(status.liveReadinessReason || 'not established')
+  ].join(' | ');
+  if(!connected){resetAccount(); resetExecutionJournal();}
+  $('#execution-reconcile').disabled=!connected;
+  $('#execution-refresh').disabled=!connected;
   $('.live-indicator').textContent=connected?'BROKER SESSION CONNECTED':'BROKER DISCONNECTED';
   $('#account-button').disabled=!connected;
   $('#account-button').title=connected?'Disconnect Zerodha':'No broker session';
@@ -76,7 +88,44 @@ async function loadStatus() {
   $('meta[name="csrf-token"]').content = status.csrf;
   connectState(status);
   await loadView(currentView);
+  await loadExecutionJournal();
 }
+
+let executionRequest = 0;
+function resetExecutionJournal() {
+  executionRequest += 1;
+  $('#execution-rows').innerHTML='<tr><td colspan="6">No journal loaded for this session.</td></tr>';
+  $('#execution-status').textContent='Connect to inspect this account. Positions reconciled: no.';
+}
+function renderExecutionJournal(payload) {
+  const intents=Array.isArray(payload.intents)?payload.intents:[];
+  const unresolved=intents.filter(x=>!['COMPLETE','CANCELLED','REJECTED'].includes(x.state)).length;
+  $('#execution-status').textContent=unresolved+' unresolved intent(s). Positions reconciled: '+(payload.positionsReconciled===true?'yes':'no')+'. No order was placed by this check.';
+  $('#execution-rows').innerHTML=intents.length?intents.map(x=>{
+    const order=x.order||{};
+    return '<tr><td>'+safe(order.exchange+':'+order.tradingsymbol+' / '+order.product)+'</td><td>'+safe(order.transaction_type)+'</td><td>'+safe(x.filledQuantity)+' / '+safe(order.quantity)+'</td><td>'+safe(x.state)+'</td><td>'+safe(x.brokerOrderId||'Not acknowledged')+'</td><td>'+safe(x.reason||'Awaiting broker reconciliation')+'</td></tr>';
+  }).join(''):'<tr><td colspan="6">No durable manual intents recorded for this account.</td></tr>';
+}
+async function loadExecutionJournal(reconcile=false) {
+  if(!connected){resetExecutionJournal();return;}
+  const request=++executionRequest;
+  $('#execution-refresh').disabled=true;
+  $('#execution-reconcile').disabled=true;
+  $('#execution-status').textContent=reconcile?'Reading broker order and trade evidence...':'Loading durable journal...';
+  try {
+    const payload=await api(reconcile?'/api/orders/reconcile':'/api/orders/execution',reconcile?{method:'POST',body:'{}'}:{});
+    if(request===executionRequest && connected)renderExecutionJournal(payload);
+  } catch(error) {
+    if(request===executionRequest) {
+      $('#execution-status').textContent='Journal check failed: '+error.message+' Positions remain unverified. Do not infer that an uncertain order failed.';
+      $('#execution-rows').innerHTML='<tr><td colspan="6">Current state unavailable. Review the broker order book.</td></tr>';
+    }
+  } finally {
+    if(request===executionRequest){$('#execution-refresh').disabled=!connected;$('#execution-reconcile').disabled=!connected;}
+  }
+}
+$('#execution-refresh').addEventListener('click',()=>loadExecutionJournal());
+$('#execution-reconcile').addEventListener('click',()=>loadExecutionJournal(true));
 
 function setView(view) {
   currentView = view;
@@ -208,11 +257,23 @@ $('#order-type').addEventListener('change', (event) => {
   $('#price-field').hidden = type === 'SL-M';
   $('#trigger-field').hidden = !['SL','SL-M'].includes(type);
 });
+let orderRevision = 0;
+function invalidateOrderReview() {
+  orderRevision += 1;
+  pendingOrder = null;
+  $('#confirmation').hidden = true;
+  $('#place-order-button').disabled = true;
+}
+for (const eventName of ['input', 'change']) $('#order-form').addEventListener(eventName, event => {
+  if (event.target.name) invalidateOrderReview();
+});
 $('#order-form').addEventListener('submit', async (event) => {
   event.preventDefault();
-  $('#confirmation').hidden = true;
+  invalidateOrderReview();
+  const revision = orderRevision;
   try {
     const response = await api('/api/orders/preview', { method:'POST', body:JSON.stringify(orderValues()) });
+    if (revision !== orderRevision) return;
     showReview(response.order,response.confirmationId);
   } catch (error) {
     showToast(error.message);
@@ -239,6 +300,7 @@ $('#place-order-button').addEventListener('click', async () => {
   } finally {
     button.textContent = 'Place live order ↗';
     button.disabled = true;
+    await loadExecutionJournal();
   }
 });
 $('#quote-button').addEventListener('click', async () => {

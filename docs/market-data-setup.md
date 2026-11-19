@@ -4,6 +4,8 @@
 
 The application includes NSE equity search, historical-candle viewing, a broker WebSocket last-price chart, and an educational strategy simulator using synthetic prices. No live strategy is configured. No automatic order loop exists.
 
+As of 18 November 2026, manual order dispatch is also blocked by server-side readiness. Credentials enable authenticated broker reads, not a readiness override. See the [repair report](system-repair-2026-11-18.md) for actual capabilities, private ledger settings and recovery steps.
+
 Install the pinned official SDK in a project environment:
 
 ```powershell

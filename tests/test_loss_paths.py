@@ -12,6 +12,7 @@ import sqlite3
 
 from market_data import MarketData
 from paper import PaperEngine
+from execution_journal import ExecutionJournal
 from test_orders import Handler, ORDER, namespace
 from test_paper import CONFIG, bars
 
@@ -21,7 +22,9 @@ class LossPathTests(unittest.TestCase):
         handler=object.__new__(Handler)
         handler.error=Mock()
         handler.json_response=Mock()
-        session={'access_token':'first-fixture'}
+        directory=tempfile.TemporaryDirectory(); self.addCleanup(directory.cleanup)
+        namespace['EXECUTION']=ExecutionJournal(Path(directory.name)/'execution.sqlite')
+        session={'profile':{'user_id':'fixture-user'},'access_token':'first-fixture'}
         handler.valid_host=lambda:True
         handler.authenticated_session=lambda:('fixture',session)
         handler.body_json=lambda:ORDER

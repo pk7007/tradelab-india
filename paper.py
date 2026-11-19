@@ -7,6 +7,8 @@ from pathlib import Path
 import sqlite3
 import uuid
 from research import timestamp, IST, validate_rows
+from strategy_contract import target_long, assumed_fill
+import intraday_contract
 
 
 class PaperEngine:
@@ -71,6 +73,10 @@ class PaperEngine:
             config[key] = value.strip()
         if data.get('source') not in ('synthetic', 'imported'): raise ValueError('Choose synthetic or imported data.')
         config.update(source=data['source'], strategy='sma5-20-next-open-paper-v1', interval='5minute', overnight=True)
+        if data.get('strategy') == intraday_contract.VERSION:
+            config.update(intraday_contract.validate(data), strategy=intraday_contract.VERSION, overnight=False)
+        elif data.get('strategy') not in (None, 'sma5-20-next-open-paper-v1'):
+            raise ValueError('Unknown paper strategy version.')
         state = dict(id=uuid.uuid4().hex, config=config, status='paused', cash=config['capital'], quantity=0, basis=0,
                      fees=0, realized=0, equity=config['capital'], pending=None, lastBar=None, closes=[],
                      day=None, dayStartEquity=config['capital'], dayLoss=0, riskHalted=False, completedTrades=0)
@@ -84,15 +90,31 @@ class PaperEngine:
             accounts = [json.loads(row[0]) for row in db.execute('SELECT body FROM accounts ORDER BY rowid DESC')]
             events = [dict(seq=r['seq'], account=r['account'], at=r['at'], **json.loads(r['body'])) for r in db.execute('SELECT * FROM events ORDER BY seq DESC LIMIT 100')]
         return dict(accounts=accounts, events=events, live=False, feed='Manual completed-candle ingestion; continuous provider feed disconnected',
-                    assumptions='Fixed units; SMA(5/20); next observed open; full fills with supplied costs/slippage. Overnight positions allowed. No protective stops, liquidity model or exchange calendar. Daily loss is net equity decline from the previous session close; a breach blocks new buys and does not liquidate.')
+                    assumptions='Inspect the selected account strategy. Legacy accounts use fixed units/full next-open fills and permit overnight holding. Opt-in intraday-v1 uses supplied stop/target, cost-aware size, volume participation and observed-open square-off; failed exits retain exposure. Both are imported OHLC models without a verified exchange calendar or continuous feed; losses may exceed thresholds.')
 
     def control(self, identity, action):
-        if action not in ('start', 'pause', 'stop'): raise ValueError('Unknown control.')
+        if action not in ('start', 'pause', 'stop', 'pause_entries', 'resume_entries', 'cancel_entries', 'close_position'):
+            raise ValueError('Unknown control.')
         with self.db() as db:
             s = self.load(db, identity)
-            s['status'] = 'running' if action == 'start' else 'paused' if action == 'pause' else 'stopped'
-            if action == 'stop': s['pending'] = None
-            self.save(db, s, {'type': action, 'detail': 'Positions unchanged. Stop cancels the local unfilled intent; pause preserves it. No broker action.'})
+            detail = 'Positions unchanged. Stop cancels the local unfilled intent; pause preserves it. No broker action.'
+            if action in ('start', 'resume_entries', 'close_position') and not self.reconcile_in(db, s)['matches']:
+                raise ValueError('Paper ledger mismatch; investigate before resuming or requesting an exit.')
+            if action in ('start', 'pause', 'stop'):
+                s['status'] = 'running' if action == 'start' else 'paused' if action == 'pause' else 'stopped'
+                if action == 'stop': s['pending'] = None
+            elif action == 'close_position':
+                if s['status'] != 'running' or not s['quantity']:
+                    raise ValueError('A running account with open shares is required. Resume ingestion before requesting closure.')
+                s['entriesPaused'] = True
+                s['pending'] = dict(side='SELL', signalAt=s['lastBar'], reason='User requested paper closure')
+                detail = 'Exit requested, not filled. Shares remain exposed until the next accepted candle open. New entries paused.'
+            else:
+                if action != 'cancel_entries': s['entriesPaused'] = action == 'pause_entries'
+                if action != 'resume_entries' and s.get('pending') and s['pending']['side'] == 'BUY':
+                    s['pending'] = None
+                detail = 'Entry control updated. Existing shares and pending exits preserved; running ingestion continues.'
+            self.save(db, s, {'type': action, 'detail': detail})
         return s
 
     def fixture_link(self, identity, connected):
@@ -124,6 +146,7 @@ class PaperEngine:
     def reconcile_in(self, db, s):
         cash = basis = realized = fees = 0.0
         quantity = fills = 0
+        last_buy_price = None
         initialized = False
         valid = True
         for row in db.execute('SELECT body FROM events WHERE account=? ORDER BY seq', (s['id'],)):
@@ -140,6 +163,7 @@ class PaperEngine:
                 valid = False
                 break
             if event['side'] == 'BUY':
+                last_buy_price = event['price']
                 basis += value + fee
                 cash -= value + fee
                 quantity += units
@@ -161,6 +185,11 @@ class PaperEngine:
         if quantity != s['quantity']: mismatches.append('quantity')
         if s['lastBar'] != (last['stamp'] if last else None): mismatches.append('lastBar')
         if not valid or not initialized: mismatches.append('ledger')
+        if s['config']['strategy'] == intraday_contract.VERSION and quantity:
+            c=s['config'];raw=last_buy_price/(1+c['slippageBps']/10000) if last_buy_price else None
+            expected=dict(stop=raw*(1-c['stopDistancePct']/100),target=raw+raw*c['stopDistancePct']/100*c['targetMultiple']) if raw else {}
+            if any(not isinstance(s.get('protection',{}).get(key),(int,float)) or not math.isclose(value,s['protection'][key],rel_tol=0,abs_tol=.0001) for key,value in expected.items()) or not expected:
+                mismatches.append('protection')
         return dict(matches=not mismatches, mismatches=mismatches, quantity=quantity, fills=fills,
                     unrealized=market_value-basis, **rebuilt)
 
@@ -179,13 +208,15 @@ class PaperEngine:
                 if stamp.weekday() >= 5 or stamp.second or stamp.microsecond or stamp.minute % 5 or not dt.time(9,15) <= stamp.time() <= dt.time(15,25):
                     raise ValueError('Use weekday NSE session starts, 09:15–15:25 IST, aligned to five minutes.')
                 clean = dict(date=stamp.isoformat(), **{k:float(row[k]) for k in ('open','high','low','close','volume')})
-                if clean['volume'] <= 0 or clean['high'] > 1e9: raise ValueError('Positive volume and prices below 1e9 required.')
+                if clean['volume'] < 0 or clean['high'] > 1e9: raise ValueError('Nonnegative volume and prices below 1e9 required.')
                 normalized.append(clean)
             except (TypeError, KeyError, OverflowError) as exc: raise ValueError('Malformed candle.') from exc
         processed = duplicates = 0
         with self.db() as db:
             s = self.load(db, identity)
             if s['status'] != 'running': raise ValueError('Start this paper account before ingesting candles.')
+            if s['config']['strategy'] != intraday_contract.VERSION and any(bar['volume'] <= 0 for bar in normalized):
+                raise ValueError('Positive volume required for the legacy paper workflow.')
             for row in rows:
                 if 'symbol' in row and row['symbol'] != s['config']['symbol']:
                     raise ValueError('Candle symbol differs from the account symbol.')
@@ -199,7 +230,12 @@ class PaperEngine:
                     raise ValueError('Fixture instrument or connection mismatch.')
             if not self.reconcile_in(db,s)['matches']:
                 raise ValueError('Paper ledger mismatch; processing blocked.')
-            for bar in normalized:
+            for index, bar in enumerate(normalized):
+                if s['config']['strategy'] == intraday_contract.VERSION:
+                    for flag in ('halted','reject'):
+                        value=rows[index].get(flag,False)
+                        if type(value) is not bool: raise ValueError('Intraday halt/rejection flags must be Boolean.')
+                        bar[flag]=value
                 encoded = json.dumps(bar, sort_keys=True)
                 old = db.execute('SELECT body FROM bars WHERE account=? AND stamp=?', (identity,bar['date'])).fetchone()
                 if old:
@@ -214,6 +250,18 @@ class PaperEngine:
                     if stamp.date() != previous.date() and (previous.time() != dt.time(15,25) or stamp.time() != dt.time(9,15)):
                         raise ValueError('Incomplete session boundary; import the remaining candles first.')
                 day = stamp.date().isoformat()
+                if s['config']['strategy'] == intraday_contract.VERSION:
+                    events=intraday_contract.advance(s,bar)
+                    db.execute('INSERT INTO bars VALUES(?,?,?)',(identity,bar['date'],encoded))
+                    if feed:
+                        received=dt.datetime.now(IST)
+                        feed.pop('lastError',None)
+                        db.execute('INSERT INTO receipts VALUES(?,?,?,?,?)',(identity,bar['date'],received.isoformat(),feed['source'],fixture_instrument))
+                        feed.update(received=received.isoformat(),exchangeStart=bar['date'],ageAtReceiptSeconds=(received-stamp-dt.timedelta(minutes=5)).total_seconds())
+                    for event in events: self.save(db,s,event)
+                    self.save(db,s,dict(type='bar',bar=bar['date'],equity=s['equity'],pending=s['pending'],riskHalted=s['riskHalted']))
+                    processed += 1
+                    continue
                 if day != s['day']:
                     s.update(day=day, dayStartEquity=s['equity'], dayLoss=0, riskHalted=False)
                 c = s['config']; fee = c['costBps']/10000; slip = c['slippageBps']/10000
@@ -222,12 +270,12 @@ class PaperEngine:
                 intent = s['pending']; s['pending'] = None
                 if intent:
                     side = intent['side']; units = c['units'] if side == 'BUY' else s['quantity']
-                    price = bar['open']*(1+slip if side == 'BUY' else 1-slip)
-                    commission = units*price*fee
+                    price, commission = assumed_fill(bar['open'], units, side, c['costBps'], c['slippageBps'])
                     cost = units*price+commission
                     reason = None
                     if side == 'BUY':
-                        if s['riskHalted']: reason = 'Daily loss threshold reached'
+                        if s.get('entriesPaused'): reason = 'New entries paused'
+                        elif s['riskHalted']: reason = 'Daily loss threshold reached'
                         elif cost > s['cash'] or cost > c['maxExposure']: reason = 'Cash or exposure limit at next open'
                     if reason:
                         self.save(db,s,dict(type='rejected',bar=bar['date'],side=side,reason=reason,signalAt=intent['signalAt']))
@@ -244,11 +292,11 @@ class PaperEngine:
                 s['closes'] = (s['closes']+[bar['close']])[-20:]
                 s['lastBar'] = bar['date']
                 if len(s['closes']) == 20:
-                    long = math.fsum(s['closes'][-5:])*4 > math.fsum(s['closes'])
+                    long = target_long(s['closes'])
                     if long and not s['quantity'] and s['riskHalted']:
                         self.save(db,s,dict(type='skipped',side='BUY',quantity=c['units'],signalAt=bar['date'],
                                             reason='Daily loss threshold reached'))
-                    side = 'BUY' if long and not s['quantity'] and not s['riskHalted'] else 'SELL' if not long and s['quantity'] else None
+                    side = 'BUY' if long and not s['quantity'] and not s['riskHalted'] and not s.get('entriesPaused') else 'SELL' if not long and s['quantity'] else None
                     if side: s['pending'] = dict(side=side,signalAt=bar['date'])
                 db.execute('INSERT INTO bars VALUES(?,?,?)',(identity,bar['date'],encoded))
                 if feed:

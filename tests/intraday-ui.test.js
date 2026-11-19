@@ -1,0 +1,25 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const source=fs.readFileSync('web/portal.js','utf8');
+const nodes={};
+for(const id of ['research-form','research-input','research-permitted','candidates','research-note'])nodes[id]={value:'{}',checked:true,textContent:'',children:[],replaceChildren(...items){this.children=items;},append(item){this.children.push(item);}};
+let resolveRequest,work;
+const context={researchVersion:0,$:id=>nodes[id],JSON,api:()=>new Promise(resolve=>resolveRequest=resolve),run:action=>work=action(),candidateCard:()=>{throw Error('Stale candidate must not render');},text:(_tag,value)=>({textContent:value}),money:value=>'₹'+value};
+vm.createContext(context);
+vm.runInContext(source.slice(source.indexOf("$('research-form').onsubmit"),source.indexOf('function invalidateResearch')),context);
+nodes['research-form'].onsubmit({preventDefault(){}});
+context.researchVersion++;
+resolveRequest({candidates:[{symbol:'OLD'}]});
+work.then(result=>{
+ assert.equal(result,false);
+ assert.equal(nodes.candidates.children.length,0);
+ vm.runInContext(source.slice(source.indexOf('function paperModelDescription'),source.indexOf('function currentAccount')),context);
+ assert.match(context.paperModelDescription({strategy:'intraday-v1',maxLoss:25,squareOff:'15:15'}),/simulated stop/);
+ assert.match(context.paperModelDescription({strategy:'legacy'}),/not enforced/);
+ const paper=fs.readFileSync('web/paper.js','utf8');
+ const modelContext={};vm.createContext(modelContext);
+ vm.runInContext(paper.slice(paper.indexOf('function modelDescription'),paper.indexOf('function show(')),modelContext);
+ assert.match(modelContext.modelDescription({strategy:'intraday-v1',maxLoss:25,entryEnd:'14:45',squareOff:'15:15'}),/losses can exceed/);
+ console.log('PASS: edited research discards late candidates; intraday/legacy protection wording differs');
+}).catch(error=>{console.error(error);process.exitCode=1;});
