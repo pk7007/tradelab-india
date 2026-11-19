@@ -1,0 +1,8 @@
+# Project-scoped Codex subagents for the TradeLab India news upgrade.
+# Keep only three subagent threads open to limit Plus-plan usage.
+# Models in per-agent TOML files require availability in the selected Codex client.
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 3
+default_subagent_model = "gpt-6-luna"
+default_subagent_reasoning_effort = "high"
