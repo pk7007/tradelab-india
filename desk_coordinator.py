@@ -5,9 +5,11 @@ import threading
 
 
 class DeskCoordinator:
-    def __init__(self, news, market, paper, worker, agents):
+    def __init__(self, news, market, paper, worker, agents, selection=None, evidence=None):
         self.news, self.market, self.paper = news, market, paper
         self.worker, self.agents = worker, agents
+        self.selection = selection
+        self.evidence = evidence
         self.lock = threading.Lock()
         self.shutdown = threading.Event()
         self.thread = None
@@ -50,6 +52,8 @@ class DeskCoordinator:
                     detail = dict(eligibleItems=len(value.get('items', [])),
                                   mappedItems=sum(bool(r.get('symbols')) for r in value.get('items', [])))
                 elif name == 'paper':
+                    if self.selection and self.selection.enabled:
+                        value=self.selection.status()
                     state = value.get('state', 'unknown')
                     detail = dict(accountId=value.get('accountId'), lastAcceptedBar=value.get('lastAcceptedBar'),
                                   reason=value.get('lastError'))
@@ -79,12 +83,20 @@ class DeskCoordinator:
                 tasks.append(self.agents.enqueue(dict(capability='operations-security.monitoring',
                     input=dict(permitted=True, records=[record], maxAgeSeconds=60), evidenceCutoff=at,
                     priority=2, budgetSeconds=10, deadlineSeconds=120, idempotencyKey=key)))
+        session_evidence = dict(tasks=[], rolesRun=[], executionAllowed=False)
+        if self.evidence and self.selection:
+            try:
+                session_evidence = self.evidence.observe(self.selection.status())
+            except Exception:
+                session_evidence = dict(state='unavailable', tasks=[], rolesRun=[], executionAllowed=False,
+                                        reason='Session evidence unavailable; inspect the ledger and service.')
         with self.lock:
             self.snapshot = dict(state='monitoring', checkedAt=at, departments=departments,
                                  tasks=tasks, reviewQueueFull=pending >= 100, executionAllowed=False,
+                                 sessionEvidence=session_evidence,
                                  handoffs=[['news', 'research-context'], ['news', 'paper-context'],
                                            ['paper', 'ledger'], ['department-health', 'agent-review']],
-                                 pendingIntegrations=['Automatic whole-market research', 'Strategy validation from news'])
+                                 pendingIntegrations=['Observed market acceptance of stock selection', 'Strategy validation from news'])
         return self.status()
 
     def status(self):

@@ -1,0 +1,76 @@
+{
+  "mode": "Controlled replay through actual browser and HTTP API",
+  "viewport": "390x844",
+  "symbol": "DEMO",
+  "capital": 1000.0,
+  "cash": 998.1392504500001,
+  "fees": 1.8404995499999997,
+  "realized": -1.8607495499999231,
+  "quantity": 0,
+  "final": true,
+  "fills": [
+    {
+      "seq": 69,
+      "recordedAt": "2026-11-20T17:07:54.982462+00:00",
+      "type": "fill",
+      "bar": "2026-01-02T11:05:00+05:30",
+      "side": "BUY",
+      "quantity": 9,
+      "price": 102.2511,
+      "fee": 0.9202598999999998,
+      "signalAt": "2026-01-02T11:00:00+05:30",
+      "reason": "SMA completed-close entry; unfilled remainder cancelled"
+    },
+    {
+      "seq": 84,
+      "recordedAt": "2026-11-20T17:07:55.449999+00:00",
+      "type": "fill",
+      "bar": "2026-01-02T11:10:00+05:30",
+      "side": "SELL",
+      "quantity": 9,
+      "price": 102.24885,
+      "fee": 0.9202396499999999,
+      "signalAt": "2026-01-02T11:05:00+05:30",
+      "reason": "User ended paper session"
+    }
+  ],
+  "selection": {
+    "universeCount": 1,
+    "quoteCount": 1,
+    "candleChecks": 1,
+    "candidates": [
+      {
+        "symbol": "DEMO",
+        "score": 0.7414730598121588,
+        "bar": "2026-01-02T10:55:00+05:30",
+        "estimatedQuantity": 9,
+        "plan": {
+          "quantity": 9,
+          "entry": 102.1,
+          "stop": 100.05799999999999,
+          "target": 106.184,
+          "estimatedStopLoss": 21.107142188999873,
+          "estimatedCapital": 920.2788094499997,
+          "riskPerUnit": 2.345238020999986,
+          "grossRewardRisk": 2.0,
+          "estimatedNetTargetProfit": 33.944184378000315,
+          "netRewardRisk": 1.6081847591707867,
+          "caveat": "Illustrative long-only sizing. Stop gaps and unavailable fills can exceed maxLoss. Costs are user assumptions, not verified taxes."
+        }
+      }
+    ],
+    "excluded": [],
+    "checkedAt": "2026-01-02T11:00:00+05:30",
+    "ranking": "Top 20 affordable turnover-proxy names, then shared SMA spread.",
+    "strategyVersion": "intraday-v1",
+    "examinedSymbols": [
+      "DEMO"
+    ],
+    "quoteExcluded": [],
+    "selectedSymbol": "DEMO",
+    "selectedAt": "2026-01-02T11:00:00+05:30"
+  },
+  "receiptCount": 24,
+  "pageErrors": [],
+  "brokerOrderCalls": 0
+}

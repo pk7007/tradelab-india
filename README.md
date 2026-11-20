@@ -2,7 +2,7 @@
 
 ### An Indian-market research and trading workspace
 
-The home workspace now groups the product into **Intraday**, **Long-term**, and **Auto Trading**. Settings and advanced research remain available without filling the main navigation. See the [simple portal guide](docs/simple-portal.md). The previous control room is available at `/advanced`; existing paper and research records are preserved.
+The home workspace opens on **Auto Trading**, combining intraday selection, session controls, positions, results and evidence. Settings contains connection, assumptions and diagnostics. Long-term research is deferred until intraday paper acceptance is complete. See the [intraday automation guide](docs/intraday-automation.md). The previous control room is available at `/advanced`.
 
 New paper accounts can explicitly opt into **Intraday v1**: cost-aware sizing, modeled stop/target exits, volume-participation limits and observed-candle square-off. Legacy accounts keep their original behaviour. An explicitly armed completed-Kite-candle paper worker is now available; fills remain modeled and live dispatch stays locked. See [continuous paper setup](docs/continuous-paper-worker.md). See [intraday readiness and operations](docs/intraday-readiness.md).
 

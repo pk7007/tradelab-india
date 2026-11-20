@@ -16,6 +16,7 @@ returns their checks and handoff map. GET /api/agents exposes task results and
 review status. Monitoring does not arm the paper worker or promote strategies.
 
 This is a deterministic operations team. The existing 512 evidence role contracts
-are available for supplied research inputs. Whole-market discovery, automatic
-fundamental research and news-driven strategy validation remain pending. A
-registered role alone does not demonstrate working access to its required data.
+are available for supplied research inputs. The automatic selector now connects
+quote screening, bounded candle ranking and one funded paper allocation per
+session. See automatic-stock-selection.md. Observed market acceptance, automatic
+fundamental research and news-driven strategy validation remain pending.

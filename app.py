@@ -23,7 +23,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent
 WEB = ROOT / "web"
 PAPER_BUILD_FILES = ("app.py", "paper.py", "paper_worker.py", "worker_runtime.py",
-                     "market_contract.py", "market_data.py", "intraday_contract.py")
+                     "market_contract.py", "market_data.py", "intraday_contract.py", "auto_selector.py",
+                     "intraday_session.py", "session_evidence.py", "desk_coordinator.py")
 PAPER_BUILD = hashlib.sha256(b"".join(hashlib.sha256((ROOT / name).read_bytes()).digest()
                                      for name in PAPER_BUILD_FILES)).hexdigest()
 KITE_API = "https://api.kite.trade"
@@ -73,10 +74,27 @@ DATA_ROOT = Path(os.environ.get('TRADELAB_DATA_DIR', str(Path(os.environ.get('LO
 MARKET = MarketData(API_KEY, DATA_ROOT)
 from worker_runtime import WorkerRuntime
 PAPER_WORKER = WorkerRuntime(PAPER, MARKET, NEWS_AGENT)
+from auto_selector import AutoSelector, rank_candidates
+from intraday_session import session_snapshot
+AUTO_SELECTOR = AutoSelector(PAPER, MARKET, announcements=NEWS_AGENT)
+
+
+def automatic_selection_status():
+    result = AUTO_SELECTOR.status()
+    calendar = json.loads((ROOT / 'docs/infy-paper-calendar-2026-11-20.json').read_text())
+    calendar.pop('symbol', None)
+    calendar.update(version='nse-eq-conservative-1515-window-20261120-v1',
+                    scope='Conservative regular cash-equity research window ending 15:15. Auctions excluded.')
+    result['calendar'] = calendar
+    return result
+
+
 from agent_service import AgentService
 AGENTS = AgentService(PORTAL.path.parent / 'agents.sqlite')
 from desk_coordinator import DeskCoordinator
-DESK = DeskCoordinator(NEWS_AGENT, MARKET, PAPER, PAPER_WORKER, AGENTS)
+from session_evidence import SessionEvidence
+SESSION_EVIDENCE = SessionEvidence(PAPER)
+DESK = DeskCoordinator(NEWS_AGENT, MARKET, PAPER, PAPER_WORKER, AGENTS, AUTO_SELECTOR, SESSION_EVIDENCE)
 from strategy_lab import StrategyLab
 STRATEGY_LAB = StrategyLab(PORTAL.path.parent / 'strategy-lab.sqlite', paper_engine=PAPER)
 from operations import Operations
@@ -304,6 +322,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.error(404, "Not found.")
 
     def api_get(self, route: str, query: dict[str, list[str]]) -> None:
+        if route == '/api/auto-selection':
+            try:
+                self.json_response(200, automatic_selection_status())
+            except (sqlite3.Error, OSError):
+                self.error(503, 'Automatic session status unavailable. Review exposure before retrying.')
+            return
         if route == '/api/desk':
             self.json_response(200, DESK.status()); return
         if route == '/api/news-agent':
@@ -311,6 +335,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if route == '/api/announcements':
             self.json_response(200, NEWS_AGENT.status(getattr(MARKET,'master',[]),source='nse')); return
         session_id, session = self.session()
+        if route == '/api/intraday-session':
+            try:
+                settings = PORTAL.status()['settings']
+                template = (query.get('templateAccount') or [None])[0]
+                if template:
+                    with PAPER.db() as db:
+                        settings = PAPER.load(db, template)['config']
+                try:
+                    news = NEWS_AGENT.status(getattr(MARKET, 'master', []))
+                except Exception:
+                    news = dict(status='unavailable', stale=True, sources=[])
+                result = session_snapshot(PAPER, automatic_selection_status(), settings,
+                    connected=bool(session.get('access_token')),
+                    storage_approved=os.environ.get('KITE_DATA_STORAGE_APPROVED','false').lower() == 'true',
+                    news=news, desk=DESK.status())
+                self.json_response(200, result)
+            except (ValueError, TypeError):
+                self.error(400, 'Unknown or invalid paper assumptions account.')
+            except (sqlite3.Error, OSError):
+                self.error(503, 'Session ledger unavailable. Review exposure before retrying.')
+            return
         if route == '/api/strategy-lab':
             self.json_response(200, STRATEGY_LAB.status()); return
         if route == '/api/operations':
@@ -401,6 +446,40 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except ValueError as exc:
             self.error(400, str(exc))
             return
+        if route.startswith('/api/auto-selection/'):
+            try:
+                action=route.rsplit('/',1)[-1]
+                if action == 'control':
+                    result=AUTO_SELECTOR.control(values.get('action'))
+                elif action == 'stop':
+                    result=AUTO_SELECTOR.control('end_session')
+                elif action in ('preview','start'):
+                    template=values.get('templateAccount')
+                    with PAPER.db() as db:
+                        config=dict(PAPER.load(db,template)['config'])
+                    if config.get('strategy')!='intraday-v1' or config.get('source')!='imported':
+                        raise ValueError('Choose an imported Intraday v1 account as the assumptions template.')
+                    calendar=values.get('calendar')
+                    if values.get('permitted') is not True:
+                        raise ValueError('Confirm local data use permission.')
+                    if action == 'preview':
+                        ranked,excluded=rank_candidates(values.get('candles',{}),config,calendar,values.get('asOf'))
+                        result=dict(candidates=ranked,excluded=excluded,mode='offline-preview',live=False)
+                    else:
+                        if os.environ.get('KITE_DATA_STORAGE_APPROVED','false').lower()!='true':
+                            raise ValueError('Provider retention approval required.')
+                        self.connected_token(session)
+                        if PAPER_WORKER.status().get('enabled'):
+                            raise ValueError('Stop the fixed-symbol worker first.')
+                        result=AUTO_SELECTOR.start(session,config,calendar)
+                else:
+                    raise ValueError('Unknown automatic selection action.')
+                self.json_response(200,result)
+            except (ValueError,TypeError,KeyError,PermissionError) as exc:
+                self.error(400,str(exc))
+            except Exception:
+                self.error(503,'Automatic selection unavailable. Review its state before retrying.')
+            return
         if route == '/api/operations/backup':
             try: self.json_response(200, OPERATIONS.backup())
             except Exception: self.error(503, 'Private storage backup failed; review operations health.')
@@ -438,6 +517,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if route.startswith('/api/paper-worker/'):
             try:
                 if route == '/api/paper-worker/start':
+                    if AUTO_SELECTOR.status().get('enabled'):
+                        raise ValueError('Stop automatic selection before starting the fixed-symbol worker.')
+                    with PAPER.db() as db:
+                        if db.execute('SELECT 1 FROM auto_selection WHERE account=?',(values.get('id'),)).fetchone():
+                            raise ValueError('Resume this account through automatic selection to preserve its funding history.')
                     if os.environ.get('KITE_DATA_STORAGE_APPROVED','false').lower()!='true':
                         raise ValueError('Confirm permitted provider candle retention in local configuration before starting.')
                     self.connected_token(session)
@@ -495,13 +579,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
             action=route.rsplit('/',1)[-1]
             try:
                 if action.startswith('paper-'):
+                    if action in ('paper-control', 'paper-bars', 'paper-fixture-bars',
+                                  'paper-fixture-connect', 'paper-fixture-disconnect'):
+                        with PAPER.db() as db:
+                            managed = db.execute('SELECT 1 FROM auto_selection WHERE account=?',
+                                                 (values.get('id'),)).fetchone()
+                        if managed:
+                            raise ValueError('Manage automatic accounts through Auto Trading session controls.')
                     if action=='paper-state': result=PAPER.status()
                     elif action=='paper-reconcile': result=PAPER.reconcile(values.get('id'))
                     elif action=='paper-fixture-connect': result=PAPER.fixture_link(values.get('id'),True)
                     elif action=='paper-fixture-disconnect': result=PAPER.fixture_link(values.get('id'),False)
                     elif action=='paper-fixture-bars': result=PAPER.fixture_batch(values.get('id'),values.get('instrument'),values.get('bars'),values.get('permitted'))
                     elif action=='paper-create': result=PAPER.create(values)
-                    elif action=='paper-control': result=PAPER.control(values.get('id'),values.get('action'))
+                    elif action=='paper-control':
+                        with PAPER.db() as db:
+                            managed=db.execute('SELECT 1 FROM auto_selection WHERE account=?',(values.get('id'),)).fetchone()
+                        if managed and values.get('action') in ('start','resume_entries'):
+                            raise ValueError('Resume managed accounts through automatic selection.')
+                        result=PAPER.control(values.get('id'),values.get('action'))
                     elif action=='paper-bars': result=PAPER.ingest(values.get('id'),values.get('bars'),values.get('permitted'))
                     else: raise ValueError('Unknown paper action.')
                     self.json_response(200,result); return
@@ -569,6 +665,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if route == "/api/connect":
             self.begin_kite_login(session)
         elif route == "/api/disconnect":
+            if AUTO_SELECTOR.session is session:
+                AUTO_SELECTOR.stop()
             PAPER_WORKER.stop_owner(session_id)
             MARKET.stop_stream(session_id)
             MARKET.cancel_owner(session_id)
@@ -795,6 +893,7 @@ def serve() -> None:
     except KeyboardInterrupt:
         pass
     finally:
+        AUTO_SELECTOR.stop()
         DESK.stop()
         NEWS_AGENT.stop()
         server.server_close()

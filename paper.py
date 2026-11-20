@@ -52,7 +52,7 @@ class PaperEngine:
             raise ValueError('Unknown paper account.')
         return json.loads(row['body'])
 
-    def create(self, data):
+    def create(self, data, *, identity=None):
         if data.get('permitted') is not True:
             raise ValueError('Confirm permission to retain these candles for local paper research.')
         config = {}
@@ -78,10 +78,16 @@ class PaperEngine:
             config.update(intraday_contract.validate(data), strategy=intraday_contract.VERSION, overnight=False)
         elif data.get('strategy') not in (None, 'sma5-20-next-open-paper-v1'):
             raise ValueError('Unknown paper strategy version.')
-        state = dict(id=uuid.uuid4().hex, config=config, status='paused', cash=config['capital'], quantity=0, basis=0,
+        state = dict(id=identity or uuid.uuid4().hex, config=config, status='paused', cash=config['capital'], quantity=0, basis=0,
                      fees=0, realized=0, equity=config['capital'], pending=None, lastBar=None, closes=[],
                      day=None, dayStartEquity=config['capital'], dayLoss=0, riskHalted=False, completedTrades=0)
         with self.db() as db:
+            existing = db.execute('SELECT body FROM accounts WHERE id=?', (state['id'],)).fetchone()
+            if existing:
+                saved = json.loads(existing[0])
+                if saved['config'] != config:
+                    raise ValueError('Account identity already has different assumptions.')
+                return saved
             if db.execute('SELECT COUNT(*) FROM accounts').fetchone()[0] >= 100: raise ValueError('Local account limit reached (100).')
             self.save(db, state, {'type': 'created', 'config': config})
         return state
@@ -93,15 +99,30 @@ class PaperEngine:
         return dict(accounts=accounts, events=events, live=False, feed='Manual completed-candle ingestion; continuous provider feed disconnected',
                     assumptions='Inspect the selected account strategy. Legacy accounts use fixed units/full next-open fills and permit overnight holding. Opt-in intraday-v1 uses supplied stop/target, cost-aware size, volume participation and observed-open square-off; failed exits retain exposure. Both are imported OHLC models without a verified exchange calendar or continuous feed; losses may exceed thresholds.')
 
-    def control(self, identity, action):
-        if action not in ('start', 'pause', 'stop', 'pause_entries', 'resume_entries', 'cancel_entries', 'close_position'):
+    def control(self, identity, action, *, requested_at=None):
+        if action not in ('start', 'pause', 'stop', 'pause_entries', 'resume_entries', 'cancel_entries', 'close_position', 'end_session'):
             raise ValueError('Unknown control.')
+        request_stamp=timestamp(requested_at or dt.datetime.now(IST).isoformat()).isoformat() if action=='end_session' else None
         with self.db() as db:
             s = self.load(db, identity)
             detail = 'Positions unchanged. Stop cancels the local unfilled intent; pause preserves it. No broker action.'
-            if action in ('start', 'resume_entries', 'close_position') and not self.reconcile_in(db, s)['matches']:
+            if action in ('start', 'resume_entries', 'close_position', 'end_session') and not self.reconcile_in(db, s)['matches']:
                 raise ValueError('Paper ledger mismatch; investigate before resuming or requesting an exit.')
-            if action in ('start', 'pause', 'stop'):
+            if action == 'resume_entries' and s.get('endRequested'):
+                raise ValueError('This session is ending; new entries cannot resume.')
+            if action == 'end_session':
+                if s.get('endRequested'):
+                    return s
+                s['endRequested'] = True
+                s['entriesPaused'] = True
+                if s['quantity']:
+                    if not s.get('pending') or s['pending']['side'] != 'SELL':
+                        s['pending'] = dict(side='SELL', signalAt=s['lastBar'], requestedAt=request_stamp,
+                                            reason='User ended paper session')
+                else:
+                    s['pending'] = None
+                detail = 'Session ending. New entries blocked; exposure remains until accepted candles confirm all exits.'
+            elif action in ('start', 'pause', 'stop'):
                 s['status'] = 'running' if action == 'start' else 'paused' if action == 'pause' else 'stopped'
                 if action == 'stop': s['pending'] = None
             elif action == 'close_position':
@@ -115,7 +136,10 @@ class PaperEngine:
                 if action != 'resume_entries' and s.get('pending') and s['pending']['side'] == 'BUY':
                     s['pending'] = None
                 detail = 'Entry control updated. Existing shares and pending exits preserved; running ingestion continues.'
-            self.save(db, s, {'type': action, 'detail': detail})
+            event={'type': action, 'detail': detail}
+            if request_stamp:
+                event['requestedAt']=request_stamp
+            self.save(db, s, event)
         return s
 
     def fixture_link(self, identity, connected):
@@ -303,7 +327,17 @@ class PaperEngine:
                             raise ValueError('Incomplete session boundary; import the remaining candles first.')
                 day = stamp.date().isoformat()
                 if s['config']['strategy'] == intraday_contract.VERSION:
+                    # A manual request made now cannot fill at an earlier
+                    # missed candle open during historical recovery. Existing
+                    # protective levels can still act on the recovered bar.
+                    deferred=s.get('pending')
+                    if deferred and deferred.get('requestedAt') and stamp < timestamp(deferred['requestedAt']):
+                        s['pending']=None
+                    else:
+                        deferred=None
                     events=intraday_contract.advance(s,bar)
+                    if deferred and s['quantity'] and not s.get('pending'):
+                        s['pending']=deferred
                     db.execute('INSERT INTO bars VALUES(?,?,?)',(identity,bar['date'],encoded))
                     if feed:
                         received=dt.datetime.now(IST)
