@@ -19,7 +19,7 @@ class SupervisedTests(unittest.TestCase):
         return dict(capability='strategy-research.analysis',input=dict(permitted=True,candles={'DEMO':[]},asOf='2026-01-02T12:00:00+05:30'),evidenceCutoff='2026-01-02T12:00:00+05:30',priority=1,budgetSeconds=10,deadlineSeconds=60,idempotencyKey='one')
 
     def test_registry_and_persisted_idempotency(self):
-        self.assertEqual(len({r['id'] for r in registry()}),108)
+        self.assertEqual(len({r['id'] for r in registry()}),512)
         identity=self.service.enqueue(self.task())
         other=AgentService(self.path)
         self.assertEqual(other.enqueue(self.task()),identity)
@@ -58,7 +58,9 @@ class SupervisedTests(unittest.TestCase):
         b=NewsAgent(path,sources=('et',),fetch=lambda _:raw)
         result=b.poll_once();self.assertEqual(result['items'],[])
         self.assertEqual(len(result['currentItems']),1)
-        self.assertEqual(len(DashboardNews(path,b).status()['items']),1)
+        dashboard=DashboardNews(path,b)
+        dashboard.poll_due()
+        self.assertEqual(len(dashboard.status()['items']),1)
 
     def test_retirement_cancels_queue_and_cannot_self_reactivate(self):
         identity=self.service.enqueue(self.task())

@@ -148,6 +148,8 @@ def news(data):
     if not watch:raise ValueError('Enter at least one watchlist symbol.')
     cutoff=timestamp(data['asOf']) if data.get('asOf') else dt.datetime.now(dt.timezone.utc)
     by_url={}
+    conflicting_receipts=set()
+    missing_receipts=0
     for r in records(data):
         title=r.get('title');url=r.get('url');published=r.get('publishedAt')
         if not isinstance(title,str) or not title.strip() or not isinstance(url,str) or not isinstance(published,str):
@@ -156,24 +158,31 @@ def news(data):
         if parsed.scheme!='https' or not parsed.hostname or parsed.username is not None or parsed.password is not None:
             raise ValueError('Use an absolute HTTPS article URL without embedded credentials.')
         published_at=timestamp(published)
-        available_at=timestamp(r['availableAt']) if r.get('availableAt') else published_at
+        if data.get('asOf') and not r.get('availableAt'):
+            missing_receipts+=1
+            continue
+        available_at=timestamp(r['availableAt']) if r.get('availableAt') else cutoff
         if max(published_at,available_at)>cutoff:continue
         symbols=r.get('symbols',[])
         if not isinstance(symbols,list):raise ValueError('News symbols must be a list.')
         hits=watch.intersection(str(s).strip().upper() for s in symbols)
-        if not hits:continue
         query=urlencode([(k,v) for k,v in parse_qsl(parsed.query,keep_blank_values=True) if not k.lower().startswith('utm_')])
         key=urlunsplit(('https',parsed.netloc.lower(),parsed.path,query,''))
         old=by_url.get(key)
-        if old:
-            hits.update(old['watchMatches'])
-            if timestamp(old['publishedAt'])>=published_at:
-                old['watchMatches']=sorted(hits);continue
-        by_url[key]=dict(title=title.strip(),url=url,publishedAt=published,watchMatches=sorted(hits),
+        if old and timestamp(old['availableAt'])>available_at:continue
+        if old and timestamp(old['availableAt'])==available_at:
+            # Same-revision tracking links may carry complementary issuer tags.
+            if title.strip()!=old['title'] or published_at!=timestamp(old['publishedAt']):
+                conflicting_receipts.add(key)
+            old['watchMatches']=sorted(hits.union(old['watchMatches']))
+            continue
+        conflicting_receipts.discard(key)
+        by_url[key]=dict(title=title.strip(),url=url,publishedAt=published,availableAt=available_at.isoformat(),watchMatches=sorted(hits),
             categories=[word for word in ('earnings','merger','dividend','guidance','order','regulatory') if word in title.lower()])
-    return dict(items=sorted(by_url.values(),key=lambda r:timestamp(r['publishedAt']),reverse=True),
+    return dict(items=sorted((row for key,row in by_url.items() if row['watchMatches'] and key not in conflicting_receipts),key=lambda r:timestamp(r['publishedAt']),reverse=True),
                 asOf=cutoff.isoformat(),status='Imported records only; live feed disconnected',
-                caveat='availableAt, when supplied, delays visibility. Otherwise publication time is assumed. Keywords are not evidence of a price move.')
+                missingReceiptCount=missing_receipts,
+                caveat='Historical cutoffs require a receipt time for each revision. Undated imports are visible only in the current view.')
 
 def earnings(data):
     result=[]

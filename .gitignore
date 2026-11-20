@@ -24,3 +24,9 @@ data/private/
 *.sqlite*
 *.log
 publication-review.txt
+
+# College Attendance Management System
+backend/target/
+frontend/node_modules/
+frontend/dist/
+backend/.env

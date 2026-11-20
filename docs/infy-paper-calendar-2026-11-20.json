@@ -1,0 +1,38 @@
+{
+  "exchange": "NSE",
+  "segment": "EQ",
+  "symbol": "INFY",
+  "version": "nse-eq-infy-cas-20261120-v1",
+  "source": "https://nsearchives.nseindia.com/content/circulars/CMTR71775.pdf",
+  "references": [
+    "https://www.nseindia.com/static/products-services/closing-auction-session",
+    "https://nsearchives.nseindia.com/content/circulars/FAOP77239.pdf",
+    "https://nsearchives.nseindia.com/content/circulars/CMTR77516.pdf"
+  ],
+  "availableAt": "2026-11-20T15:05:00+05:30",
+  "sessions": {
+    "2026-11-20": {
+      "open": "2026-11-20T09:15:00+05:30",
+      "close": "2026-11-20T15:15:00+05:30"
+    },
+    "2026-11-21": null,
+    "2026-11-22": null,
+    "2026-11-23": {
+      "open": "2026-11-23T09:15:00+05:30",
+      "close": "2026-11-23T15:15:00+05:30"
+    },
+    "2026-11-24": null,
+    "2026-11-25": {
+      "open": "2026-11-25T09:15:00+05:30",
+      "close": "2026-11-25T15:15:00+05:30"
+    },
+    "2026-11-26": {
+      "open": "2026-11-26T09:15:00+05:30",
+      "close": "2026-11-26T15:15:00+05:30"
+    },
+    "2026-11-27": {
+      "open": "2026-11-27T09:15:00+05:30",
+      "close": "2026-11-27T15:15:00+05:30"
+    }
+  }
+}

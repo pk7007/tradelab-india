@@ -104,6 +104,7 @@ class WorkerTests(unittest.TestCase):
         self.start();self.worker.fetch=lambda *args:(_ for _ in ()).throw(PermissionError('private-token'))
         with self.assertRaises(PermissionError):self.worker.tick()
         self.assertNotIn('private-token',self.worker.status()['lastError'])
+        self.assertEqual(self.worker.status()['lastErrorCode'],'BROKER_LOGIN_REQUIRED')
 
     def test_holiday_waits_without_fetch_and_special_session_blocks(self):
         calendar=copy.deepcopy(self.calendar);calendar['sessions']['2026-01-02']=None

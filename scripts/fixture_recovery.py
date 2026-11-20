@@ -21,13 +21,16 @@ with LocalServer(('127.0.0.1',0),Handler) as server:
 @contextmanager
 def server(folder):
     env = dict(os.environ, TRADELAB_PAPER_DB=str(folder/'fixture.sqlite'),
+               LOCALAPPDATA=str(folder/'local-app-data'),
+               TRADELAB_NEWS_DB=str(folder/'news-agent.sqlite'),
                TRADELAB_EXECUTION_DB=str(folder/'execution.sqlite'),
                TRADELAB_RESEARCH_DB=str(folder/'research.sqlite'),
                TRADELAB_PORTAL_DB=str(folder/'portal.sqlite'),
                TRADELAB_AUTOMATION_DB=str(folder/'automation.sqlite'),
                TRADELAB_DATA_DIR=str(folder/'data'), TRADELAB_ENABLE_LIVE_ORDERS='false',
                KITE_API_KEY='', KITE_API_SECRET='')
-    p = subprocess.Popen([sys.executable,'-c',BOOT],cwd=ROOT,env=env,stdout=subprocess.PIPE,text=True)
+    p = subprocess.Popen([sys.executable,'-c',BOOT],cwd=ROOT,env=env,stdout=subprocess.PIPE,text=True,
+                         creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
     try:
         root = 'http://127.0.0.1:'+str(int(p.stdout.readline().strip()))
         client = request.build_opener(request.ProxyHandler({}),request.HTTPCookieProcessor(CookieJar()))

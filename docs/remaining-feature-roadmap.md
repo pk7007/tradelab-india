@@ -1,0 +1,24 @@
+# Remaining feature roadmap
+
+20 November 2026. Priorities rank risk of an incorrect decision or loss of research evidence. P0 marks a control that must hold before a feature can authorize action. P1 marks the next paper/research milestone. P2 and P3 extend product coverage once the dependencies are available. The [feature matrix](feature-gap-matrix.md) links the underlying implementations and their limits.
+
+| Rank | Priority | Gap and owner | Next deliverable | Evidence required to close |
+|---|---|---|---|---|
+| 1 | P0 | Point-in-time news and market data, research engineering | Preserve first availability, provider health and correction state consistently across worker, portal, imports and historical queries. | Late discovery, revision, retraction and ambiguous mapping fixtures. Demonstrate no earlier decision can see later evidence. |
+| 2 | P0 | Account ownership and uncertainty, execution engineering | Reconcile intent, broker identity, fills, positions and outstanding protection across restart. Maintain explicit unknown state. | Simulated acknowledgement loss, partial fill and conflicting snapshots keep additional exposure blocked. A future live trial requires separate broker-side verification. |
+| 3 | P1 | Market calendar, instrument universe and candle continuity, data engineering | Source permitted dated instrument identifiers and sessions. Report coverage, stale data, missing bars and changes in symbol identity. | Holiday, special session, missing bar and replayed duplicate give the intended skip or single observation across scanner and worker. |
+| 4 | P1 | Forward paper evidence, operations | Run the scheduled worker over independent observed sessions with the user's saved limits. Capture abstentions, outages, fees and unresolved exposure. | Export auditable session counts and reconcile every entry, exit, skip and open position against the paper ledger. |
+| 5 | P1 | Strategy consistency, quantitative engineering | Version one cash-equity strategy across scanner, replay, paper and reporting before adding more indicators. | Identical completed input and parameters yield identical signal timing, sizing assumptions, expiry and skip reasons. |
+| 6 | P1 | Evaluation and attribution, independent research reviewer | Freeze costs, benchmarks, splits and promotion criteria before observation. Compare against a simple baseline and report uncertainty. | Immutable report separates train, validation, holdout and observed forward samples. Report net returns, costs, drawdown and repeated holdout use. |
+| 7 | P1 | Licensed external evidence, data owner | Verify the approved Moneycontrol endpoint and scope privately. Add correction/retraction monitoring and demonstrate outages are visible. | Exercise the authorized environment, a replayed page, atomic cursor recovery and hard purge within the contractual window. |
+| 8 | P2 | Position sizing and replay realism, risk engineering | Unify visible cash and loss constraints with paper execution costs. Add sensitivity to gap fills, intrabar order and sampling assumptions. | Reproducible cases show a budget too small for one share, a gap through a stop and differing path outcomes. |
+| 9 | P2 | Long-term and India-specific evidence, research product | Add issuer-identified, dated financial filings and corporate ownership/disclosure imports with source rights. Show unavailable fields and stale periods. | Validate revised filings, sector comparisons, consolidation basis and delayed public disclosure using permitted records. |
+| 10 | P2 | Usability and service observability, product engineering | Show usable source health, account mode, last successful run and next action on the existing screens. Add durable alerts if required. | An operator can distinguish no qualifying setup, unavailable evidence and failed worker, including after a restart. |
+
+## Dependencies and later research
+
+The application can process offline test evidence while provider credentials, an active broker login and sustained observed sessions are unavailable. Feed completion requires actual service responses and entitlement. Broker reads alone cannot establish ownership or reliable protection. Access details belong in local configuration.
+
+After the first shared cash-equity strategy has reproducible paper and historical evidence, prioritize additional indicator families by a research hypothesis. Pairs, cointegration, meta-labeling and regime assignment need independent validation and sufficient samples. Options, futures, currency and commodity analysis require dated contract masters, lot multipliers, calendars, expiry/settlement rules and permitted observations. Treat derivatives analytics and order execution as separate milestones.
+
+The implementation report should update individual rows only when corresponding evidence exists. A green offline test suite supports a code claim. A performance claim requires evaluated, dated results with costs and uncertainty.

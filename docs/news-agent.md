@@ -37,6 +37,15 @@ Offline verification:
 .\.venv\Scripts\python.exe -m unittest discover -s tests -p test_news_agent.py -v
 ```
 
+## Faster collection
+
+The collector targets a 30-second interval per healthy source. The dashboard reads
+its local snapshot every five seconds. Network response time, sequential sources,
+outage backoff and Retry-After can extend delivery. Publisher publication delays
+and rolling RSS windows remain. This covers the three configured RSS sources.
+Restart the local server to load a changed backend interval, then reconnect Kite.
+Separate CLI instances also default to 30 seconds and accept that minimum.
+
 ## Dashboard integration
 
-The Intraday tab shows the cached multi-source feed and per-fetch status. Research and paper-worker checks consume eligible exact-mapped NSE context only; editorial text matches remain unverified. Failed sources lose their cached items. The dashboard keeps current summary text in memory and stores only identity hashes and timestamps locally. See [worker operations](continuous-paper-worker.md) for permissions, setup and remaining evidence.
+The local application starts its collector after binding its port. Dashboard refreshes and paper research read the latest snapshot. Each source has its own last success, failure count and retry schedule. Failed or overdue sources have their cached summaries separated from current evidence. Research and paper-worker checks consume eligible exact-mapped NSE context only. The dashboard keeps summary text in memory and stores only identity hashes and timestamps locally. Run one collecting application per installation to avoid duplicate requests from independent processes. See [worker operations](continuous-paper-worker.md) for permissions, setup and remaining evidence.

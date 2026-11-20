@@ -42,7 +42,8 @@ class TradingAuditTests(unittest.TestCase):
         self.assertLessEqual(r["p95"],PLAN["maxLoss"])
 
     def test_news_honors_availability_and_merges_tracking_links(self):
-        base=dict(title="Earnings",symbols=["AAA"],url="https://example.org/story",publishedAt="2026-01-02T10:00:00+05:30")
+        base=dict(title="Earnings",symbols=["AAA"],url="https://example.org/story",publishedAt="2026-01-02T10:00:00+05:30",
+                  availableAt="2026-01-02T10:01:00+05:30")
         data=dict(records=[base,dict(base,symbols=["BBB"],url=base["url"]+"?utm_source=mail#top"),
                            dict(base,url=base["url"]+"2",availableAt="2026-01-02T10:40:00+05:30")],
                   asOf="2026-01-02T10:30:00+05:30",watchlist="AAA,BBB",permitted=True)

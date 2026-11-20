@@ -26,7 +26,7 @@ function entryState(account){return account.status!=='running'?'processing stopp
 function currentAccount(){return paper.accounts.find(account=>account.id===$('account').value);}
 function showPaper(){const account=currentAccount();renderWorkerSelection(account);$('metrics').replaceChildren();for(const button of document.querySelectorAll('[data-action]'))button.disabled=!account;
  if(!account){$('account-note').textContent='No paper accounts yet. Open Setup, imports & diagnostics below to create one with explicit assumptions.';$('account-status').textContent='Not configured';$('exposure').textContent='No account selected.';$('history').textContent='No trades recorded in this workspace.';return;}
- $('account-note').textContent=account.config.symbol+' · '+account.config.source+' observations · '+account.config.strategy+' · last candle '+(account.lastBar||'none');$('account-status').textContent=account.status+' · entries '+entryState(account);
+ renderAccountHealth(account);
  const unrealized=account.equity-account.cash-account.basis;for(const [label,value] of [['Cash',money(account.cash)],['Marked equity',money(account.equity)],['Realized P&L',money(account.realized)],['Unrealized P&L',money(unrealized)],['Shares held',String(account.quantity)],['Costs paid',money(account.fees)],['Daily loss used',money(account.dayLoss)+' / '+money(account.config.dailyLossLimit)],['Remaining daily allowance',money(Math.max(0,account.config.dailyLossLimit-account.dayLoss))],['Stop / target',account.protection?money(account.protection.stop)+' / '+money(account.protection.target):'None active'],['Pending order',account.pending?.side||'None']]){const metric=text('div','','metric');metric.append(text('small',label),text('strong',value));$('metrics').append(metric);}
  $('exposure').textContent=(account.quantity?'Exposure remains open: '+account.quantity+' simulated shares. ':'No open simulated shares. ')+(account.pending?'Pending '+account.pending.side+' waits for an accepted candle. ':'')+'This account uses '+money(account.config.capital)+' starting cash and '+money(account.config.dailyLossLimit)+' daily loss threshold. '+paperModelDescription(account.config)+(account.recoveryRequired?' Recovery required: carried exposure blocks new entries.':'');
  $('history').replaceChildren();const events=paper.events.filter(event=>event.account===account.id&&event.type!=='bar');for(const event of events){const row=text('div','','history-item');const detail=event.detail||event.reason||(event.side?event.side+' '+(event.quantity??'')+(Number.isFinite(event.price)?' @ '+money(event.price):''):'Configuration recorded');row.append(text('strong',event.type.replaceAll('_',' ')),text('div',detail),text('small',event.at));$('history').append(row);}if(!events.length)$('history').append(text('p','No recent fills or decisions.'));
@@ -40,21 +40,24 @@ load();
 // Official announcement summaries; refresh only while this document is visible.
 const announcementPanel=text('section','','panel');
 announcementPanel.append(text('h3','Market news · NSE, ET & Google'));
-const announcementState=text('p','Checking official RSS…');
-const announcementRefresh=text('button','Refresh announcements');announcementRefresh.type='button';
+const announcementState=text('p','Reading the latest collection…');
+const announcementRefresh=text('button','Refresh view');announcementRefresh.type='button';
 const announcementItems=text('div','','history');
 announcementPanel.append(announcementState,announcementRefresh,announcementItems);
 $('intraday').append(announcementPanel);
 let announcementBusy=false;
 async function refreshAnnouncements(){
  if(announcementBusy||document.hidden)return;announcementBusy=true;announcementRefresh.disabled=true;
- try{const result=await api('/api/news-agent');announcementState.textContent=(result.error||result.status)+(result.partial?' · Some sources unavailable':'')+' · Last success: '+(result.lastSuccess||'none')+' · Refresh interval: 5 minutes. No order triggers.';
- announcementItems.replaceChildren();for(const item of result.items||[]){const row=text('article','','history-item');const link=text('a',item.title);let url;try{url=new URL(item.url);}catch{continue;}if(url.protocol!=='https:'||url.username||url.password)continue;link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';row.append(link,text('p',(item.sourceName||'NSE')+' · '+item.description),text('small','Published: '+item.publishedAt+' · First received: '+item.availableAt+' · '+item.mapping));announcementItems.append(row);}
+ try{const result=await api('/api/news-agent');announcementState.textContent=(result.error||result.status)+(result.partial?' · Some sources unavailable':'')+' · Last successful collection '+(result.lastSuccess||'unknown')+' · Research only';
+ announcementItems.replaceChildren();
+ for(const source of result.sources||[]){announcementItems.append(text('p',source.name+' · '+(source.staleReason||source.status)+' · Last success '+(source.lastSuccess||'none')+' · Next check '+(source.nextRetryAt||'pending')));}
+ if(result.staleItems?.length)announcementItems.append(text('p',result.staleItems.length+' cached items excluded from current evidence.'));
+ for(const item of result.items||[]){const row=text('article','','history-item');const link=text('a',item.title);let url;try{url=new URL(item.url);}catch{continue;}if(url.protocol!=='https:'||url.username||url.password)continue;link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';row.append(link,text('p',[item.publisher||item.sourceName,item.evidenceType,...(item.categories||[])].filter(Boolean).join(' · ')),text('p',item.description),text('small','Published '+item.publishedAt+' · Revision available '+item.availableAt+' · '+item.mapping));announcementItems.append(row);}
  if(!result.items?.length)announcementItems.append(text('p','No announcement summaries available. This is not evidence that no events occurred.'));
  }catch(error){announcementState.textContent='Announcements unavailable: '+error.message+' · Previous summaries removed; freshness is not established.';announcementItems.replaceChildren(text('p','No current announcement evidence is available.'));}finally{announcementBusy=false;announcementRefresh.disabled=false;}
 }
 announcementRefresh.onclick=refreshAnnouncements;
-const announcementTimer=setInterval(refreshAnnouncements,300000);
+const announcementTimer=setInterval(refreshAnnouncements,5000);
 window.addEventListener('pagehide',()=>clearInterval(announcementTimer));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshAnnouncements();});
 refreshAnnouncements();
@@ -63,23 +66,50 @@ refreshAnnouncements();
 // strategy ingestion is owned by the server, never this page timer.
 let workerState=null,workerVersion=0,workerBusy=false;
 function workerEligible(account){return Boolean(account&&account.config?.strategy==='intraday-v1'&&account.config?.source==='imported');}
-function workerStatusText(status){if(!status||status.live!==false)return 'Worker status is unverified; no live readiness is implied.';return 'Paper worker: '+String(status.state||'unknown')+'. Provider connectivity and fresh candles must be checked separately.';}
+function workerStatusText(status){
+ if(!status||status.live!==false||['unknown','unavailable'].includes(status.state))return 'Worker health unverified. Refresh worker health.';
+ if(status.lastErrorCode==='BROKER_LOGIN_REQUIRED')return 'Worker stopped. Reconnect Zerodha in Settings, then review and restart the worker.';
+ if(status.state==='expired')return 'Worker heartbeat expired. Check the service and ownership before restarting.';
+ if(status.state==='waiting'&&status.enabled)return 'Worker waiting. '+(status.lastError||'Waiting for the next completed candle.');
+ if(status.state==='armed'&&status.enabled)return 'Worker armed. Waiting for the first accepted candle.';
+ if(status.state==='running'&&status.enabled&&status.threadAlive){
+   if(!status.lastAcceptedBar)return 'Worker active. Waiting for the first accepted candle.';
+   return 'Worker active. Last accepted candle '+status.lastAcceptedBar+'.';
+ }
+ if(status.state==='disarmed')return 'Worker idle. No automatic candle collection.';
+ if(status.state==='running'&&!status.threadAlive)return 'Worker processing unverified. Refresh worker health and check the service.';
+ return 'Worker '+(status.state||'unverified')+'. '+(status.lastError||'Review worker health before starting.');
+}
+function renderAccountHealth(account){
+ if(!account)return;
+ let status=account.status+' · entries '+entryState(account);
+ let candle=account.lastBar;
+ if(workerEligible(account)){
+   if(!workerState||['unknown','unavailable'].includes(workerState.state))status=workerStatusText(workerState);
+   else if(workerState.accountId===account.id){
+     status=workerStatusText(workerState);
+     candle=workerState.lastAcceptedBar||account.lastBar;
+   }else status=workerState.enabled?'Another account owns the worker.':'No worker is collecting for this account.';
+ }
+ $('account-status').textContent=status;
+ $('account-note').textContent=[account.config.symbol,account.config.strategy,'Account ingestion '+account.status,'Entries '+entryState(account),'Last accepted candle '+(candle||'none')].join(' · ');
+}
 function renderWorkerSelection(account){
  const eligible=workerEligible(account);
  $('worker-selection').textContent=account?'Selected account: '+account.config.symbol+' · '+account.id.slice(0,8)+' · '+account.config.strategy+' · '+account.config.source+(eligible?' observations. Server will verify mapping, permissions and account history.':' observations. Select an imported Intraday v1 account to start a worker.'):'Select an imported Intraday v1 account above.';
- $('worker-start').disabled=workerBusy||!eligible||workerState?.state==='unknown';
+ $('worker-start').disabled=workerBusy||!eligible||!workerState||workerState.enabled||['unknown','unavailable'].includes(workerState.state);
 }
 function showWorker(status){
  workerState=status;$('worker-state').textContent=workerStatusText(status);$('worker-health').replaceChildren();
  if(status){for(const [label,value] of [['Mode',status.mode||'unverified'],['Worker state',status.state||'unknown'],['Worker account',status.accountId||'none'],['Mapped instrument',status.instrument?status.instrument.exchange+':'+status.instrument.symbol+' · token '+status.instrument.token:'none'],['Strategy version',status.strategy||'none'],['Calendar version',status.calendarVersion||'none'],['Heartbeat',status.heartbeat||'none'],['Latest accepted candle',status.lastAcceptedBar||'none'],['Lease until',status.leaseUntil||'none'],['News context',status.newsContext?status.newsContext.status+' · '+status.newsContext.attached+' matching items · '+status.newsContext.checkedAt:'Not checked yet'],['Last failure',status.lastError||'none reported']]){$('worker-health').append(text('dt',label),text('dd',value));}
  const stamp=Date.parse(status.lastAcceptedBar);if(Number.isFinite(stamp))$('worker-health').append(text('dt','Latest candle age'),text('dd',(stamp>Date.now()?'Future-dated candle; verify clock before use.':Math.round((Date.now()-stamp)/1000)+' seconds since candle start; verify exchange session and receipt metadata.')));
  }
- $('worker-stop').disabled=workerBusy||!status?.accountId;renderWorkerSelection(currentAccount());
+ $('worker-stop').disabled=workerBusy||!status?.accountId;const selected=currentAccount();renderWorkerSelection(selected);renderAccountHealth(selected);
 }
 async function refreshWorker(){
  if(workerBusy)return false;const version=++workerVersion;
  try{const result=await api('/api/paper-worker');if(version!==workerVersion)return false;showWorker(result.worker||result);return true;}
- catch(error){if(version===workerVersion){$('worker-state').textContent='Worker health unavailable: '+error.message+'. Any displayed health below is last-known, not current.';}return false;}
+ catch(error){if(version===workerVersion)showWorker({state:'unavailable',live:false,lastError:'Worker health unavailable. Refresh to retry.'});return false;}
 }
 function workerStartPayload(account){
  if(!workerEligible(account))throw Error('Select an imported Intraday v1 account first.');

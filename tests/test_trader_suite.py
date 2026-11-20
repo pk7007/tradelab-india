@@ -31,9 +31,17 @@ class TraderSuiteTests(unittest.TestCase):
         data=PLAN|dict(candles={'A':bars()},asOf='2026-10-01T15:30:00+05:30',permitted=True,horizon=5)
         a=time_machine(data);self.assertEqual(a['sessions'],10000);self.assertEqual(a,time_machine(data))
     def test_news_deduplicates_and_matches_exact_symbol(self):
-        r=dict(title='Earnings',symbols=['INFY'],url='https://example.invalid/a',publishedAt='2026-10-01T00:00:00Z')
+        r=dict(title='Earnings',symbols=['INFY'],url='https://example.invalid/a',publishedAt='2026-10-01T00:00:00Z',availableAt='2026-10-01T00:03:00Z')
         self.assertEqual(len(news(dict(records=[r,r],watchlist='INFY',asOf='2026-10-01T01:00:00Z',permitted=True))['items']),1)
         self.assertEqual(news(dict(records=[r],watchlist='IN',permitted=True))['items'],[])
+        undated=dict(r);del undated['availableAt']
+        result=news(dict(records=[undated],watchlist='INFY',asOf='2026-10-01T01:00:00Z',permitted=True))
+        self.assertEqual((result['items'],result['missingReceiptCount']),([],1))
+        later=dict(r,title='Correction',availableAt='2026-10-01T01:01:00Z')
+        result=news(dict(records=[later,r],watchlist='INFY',asOf='2026-10-01T01:05:00Z',permitted=True))
+        self.assertEqual(result['items'][0]['title'],'Correction')
+        for rows in ([r,dict(later,symbols=[])],[dict(later,symbols=[]),r]):
+            self.assertEqual(news(dict(records=rows,watchlist='INFY',asOf='2026-10-01T01:05:00Z',permitted=True))['items'],[])
     def test_earnings_zero_base_has_no_percentage(self):
         r=dict(metric='Revenue',unit='INR',period='Q2',priorPeriod='Q1',current=100,previous=0,source='https://example.invalid/r',publishedAt='2026-10-01T00:00:00Z')
         self.assertIsNone(earnings(dict(records=[r],permitted=True))['metrics'][0]['changePct'])

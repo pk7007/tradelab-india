@@ -111,4 +111,13 @@ class WorkerRuntime:
             result=dict(state='unavailable',enabled=False,live=False,errorType=type(exc).__name__,exposureStatus='unverified')
         result['threadAlive']=bool(self.thread and self.thread.is_alive())
         result['runtimeFault']=self.runtime_fault
+        if self.worker.account:
+            try:
+                with self.engine.db() as db:
+                    account = self.engine.load(db, self.worker.account)
+                result['exposure'] = dict(quantity=account['quantity'], pending=account['pending'],
+                                          equity=account['equity'], cash=account['cash'],
+                                          strategy=account['config']['strategy'])
+            except Exception:
+                result['exposureStatus'] = 'unverified'
         return result

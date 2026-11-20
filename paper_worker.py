@@ -16,6 +16,25 @@ from research import IST, timestamp
 
 UTC = dt.timezone.utc
 
+# Only locally defined failure text is classified. Provider messages, payloads,
+# and exception class names are never copied into persisted diagnostics.
+_FAILURE_CODES = {
+    'A processed candle changed. Create a separate account for revised history.': 'REVISED_PROCESSED_CANDLE',
+    'Missing five-minute candle; import the missing interval first.': 'MISSING_CANDLE',
+    'Missing open session; import its completed candles first.': 'MISSING_SESSION',
+    'Session unknown; do not infer market open.': 'UNKNOWN_SESSION',
+    'Incomplete session boundary; import the remaining candles first.': 'INCOMPLETE_SESSION_BOUNDARY',
+    'Paper ledger mismatch; processing blocked.': 'LEDGER_MISMATCH',
+    'Worker lease lost or expired; ingestion fenced.': 'LEASE_LOST',
+    'Paper ingestion is paused or stopped.': 'ACCOUNT_PAUSED',
+    'Special session unsupported by current paper engine; processing blocked.': 'UNSUPPORTED_SESSION',
+    'No completed provider candles; no fill inferred.': 'NO_COMPLETED_CANDLES',
+    'Provider completed candles are stale; ingestion blocked.': 'STALE_CANDLES',
+    'Provider batch duplicated or unordered.': 'DUPLICATE_OR_UNORDERED_BATCH',
+    'Provider returned out-of-range candle.': 'OUT_OF_RANGE_CANDLE',
+    'Provider candle conflicts with supplied session calendar.': 'CALENDAR_CONFLICT',
+}
+
 
 class PaperWorker:
     def __init__(self, engine, fetch, clock=lambda: dt.datetime.now(UTC), lease_seconds=90):
@@ -65,7 +84,17 @@ class PaperWorker:
             s=self.engine.load(db,account_id)
             if s['config']['strategy']!='intraday-v1' or s['config']['source']!='imported' or s['config']['symbol']!=instrument['symbol']:
                 raise ValueError('Choose a matching imported Intraday v1 paper account.')
+            for date in calendar.get('sessions', {}):
+                planned = session_for(calendar,date=date,as_of=now.isoformat())
+                if planned['open']:
+                    close = timestamp(planned['end'])
+                    exit_open = dt.datetime.combine(close.date(),dt.time.fromisoformat(s['config']['squareOff']),IST)
+                    if exit_open + dt.timedelta(minutes=5) >= close:
+                        raise ValueError('Saved square-off candle must complete strictly before each continuous-session close.')
             if not self.engine.reconcile_in(db,s)['matches']: raise ValueError('Paper ledger mismatch; worker cannot arm.')
+            if db.execute('SELECT 1 FROM paper_workers WHERE account<>? AND enabled=1 AND expires>? LIMIT 1',
+                          (account_id,now.timestamp())).fetchone():
+                raise ValueError('Another worker owns an active paper account.')
             row=db.execute('SELECT * FROM paper_workers WHERE account=?',(account_id,)).fetchone()
             if row and row['enabled'] and row['expires']>now.timestamp() and row['owner']!=self.owner:
                 raise ValueError('Another worker owns this account.')
@@ -107,7 +136,7 @@ class PaperWorker:
         self.detail.update(state='stopped')
         return self.status()
 
-    def _ingest(self,rows,received,warmup):
+    def _ingest(self,rows,received,warmup,calendar):
         calls=0;restore=False
         def guard(db):
             nonlocal calls,restore
@@ -125,27 +154,29 @@ class PaperWorker:
                     self.engine.save(db,s,dict(type='worker-warmup-complete',detail='Historical catch-up complete; original entry pause restored.'))
                 for bar in rows:
                     db.execute('INSERT OR IGNORE INTO worker_receipts VALUES(?,?,?,?,?)',(self.account,timestamp(bar['date']).isoformat(),received.isoformat(),now.isoformat(),'warmup' if warmup else 'observed-candle-paper'))
-                body=json.loads(row['body']);body.update(heartbeat=now.isoformat(),lastAcceptedBar=rows[-1]['date'],state='running',lastError=None)
+                body=json.loads(row['body']);body.update(heartbeat=now.isoformat(),lastAcceptedBar=rows[-1]['date'],state='running',lastError=None,lastErrorCode=None,failureStage=None)
                 db.execute('UPDATE paper_workers SET body=?,expires=? WHERE account=?',(json.dumps(body),now.timestamp()+self.lease_seconds,self.account))
                 self.detail=body
             calls+=1
-        return self.engine.ingest(self.account,rows,True,transaction_guard=guard)
+        return self.engine.ingest(self.account,rows,True,transaction_guard=guard,session_calendar=calendar)
 
     def tick(self):
         if not self.account: raise ValueError('Explicitly arm a paper worker first.')
         if not self.lock.acquire(blocking=False): return dict(state='busy',live=False)
+        stage='lease-check'
         try:
             now=self._now();local=now.astimezone(IST)
             with self.engine.db() as db:
                 row=self._assert(db);body=json.loads(row['body']);s=self.engine.load(db,self.account)
                 if s['status']!='running': raise ValueError('Paper ingestion is paused or stopped.')
                 db.execute('UPDATE paper_workers SET expires=? WHERE account=?',(now.timestamp()+self.lease_seconds,self.account))
+            stage='calendar-check'
             session=session_for(body['calendar'],date=local.date().isoformat(),as_of=now.isoformat())
             if not session['open']:
                 self._record(state='waiting',heartbeat=now.isoformat(),lastError='Explicit calendar marks this date closed.')
                 return self.status()
             opening=timestamp(session['start']);closing=timestamp(session['end'])
-            if opening.time()!=dt.time(9,15) or closing.time()!=dt.time(15,30):
+            if opening.time()!=dt.time(9,15) or closing.time() not in (dt.time(15,15),dt.time(15,30)):
                 raise ValueError('Special session unsupported by current paper engine; processing blocked.')
             end=min(local,closing)
             if end<opening+dt.timedelta(minutes=5):
@@ -155,11 +186,24 @@ class PaperWorker:
             if local-start>dt.timedelta(days=7): raise ValueError('Backfill exceeds seven-day bound; review recovery manually.')
             # Every intervening date must be explicitly known, including holidays.
             date=start.date()
+            windows=[]
             while date<=local.date():
-                session_for(body['calendar'],date=date.isoformat(),as_of=now.isoformat());date+=dt.timedelta(days=1)
-            raw=self.fetch(dict(body['instrument']),start,end)
+                day=session_for(body['calendar'],date=date.isoformat(),as_of=now.isoformat())
+                if day['open']:
+                    # The historical API includes the end timestamp. Bound every
+                    # day's request so a catch-up spanning a weekend also excludes CAS.
+                    windows.append((max(start,timestamp(day['start'])),
+                                    min(end,timestamp(day['end'])-dt.timedelta(seconds=1))))
+                date+=dt.timedelta(days=1)
+            raw=[]
+            for first,last in windows:
+                stage='provider-fetch'
+                batch=self.fetch(dict(body['instrument']),first,last)
+                stage='provider-validation'
+                if not isinstance(batch,list) or len(raw)+len(batch)>1000:
+                    raise ValueError('Provider batch must contain at most 1,000 candles.')
+                raw.extend(batch)
             received=self._now()
-            if not isinstance(raw,list) or len(raw)>1000: raise ValueError('Provider batch must contain at most 1,000 candles.')
             rows=[]
             for bar in raw:
                 if not isinstance(bar,dict): raise ValueError('Malformed provider candle.')
@@ -179,15 +223,23 @@ class PaperWorker:
             warmup=[r for r in rows if timestamp(r['date'])<boundary]
             forward=[r for r in rows if timestamp(r['date'])>=boundary]
             processed=duplicates=0
+            stage='ingestion'
             for batch,is_warmup in ((warmup,True),(forward,False)):
                 if batch:
-                    result=self._ingest(batch,received,is_warmup)
+                    result=self._ingest(batch,received,is_warmup,body['calendar'])
                     processed+=result['processed'];duplicates+=result['duplicates']
             return dict(**self.status(),processed=processed,duplicates=duplicates,receivedAt=received.isoformat(),decisionAt=self._now().isoformat())
         except Exception as exc:
             # No provider text or credentials are copied into diagnostics.
-            self.detail.update(state='blocked',lastError='Paper worker blocked: '+type(exc).__name__+'. Review data, session, ownership and login before resuming.')
-            try: self._record(state='blocked',lastError=self.detail['lastError'])
+            login_failed = isinstance(exc,PermissionError) or (type(exc).__module__=='kiteconnect.exceptions' and
+                                                               type(exc).__name__=='TokenException')
+            code = ('BROKER_LOGIN_REQUIRED' if stage=='provider-fetch' and login_failed else
+                    'PROVIDER_FETCH_FAILED' if stage=='provider-fetch' else
+                    _FAILURE_CODES.get(str(exc), 'VALIDATION_FAILED') if type(exc) is ValueError else 'WORKER_FAILURE')
+            failure=dict(state='blocked',lastErrorCode=code,failureStage=stage,
+                         lastError='Paper worker blocked ['+code+'] during '+stage+'. Review before resuming.')
+            self.detail.update(failure)
+            try: self._record(**failure)
             except (ValueError,sqlite3.Error): pass
             raise
         finally:self.lock.release()

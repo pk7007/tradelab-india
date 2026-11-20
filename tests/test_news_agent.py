@@ -58,7 +58,7 @@ class NewsAgentTests(unittest.TestCase):
                     feed(date="Fri, 20 Nov 2026 11:00:00 +0000"),
                     feed(date="Fri, 20 Nov 2026 09:00:00"), feed(date="invalid")):
             self.assertEqual(parse_et(raw, NOW), [])
-        for raw in (b"<!DOCTYPE rss><rss/>", b" " * 3_000_001, b"<html/>"):
+        for raw in (b"<!DOCTYPE rss><rss/>", b" " * 3_000_001, b"<html/>", "<rss><channel/></rss>".encode("utf-16")):
             with self.assertRaises(ValueError):
                 parse_et(raw, NOW)
 

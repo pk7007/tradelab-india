@@ -52,7 +52,8 @@ class Portal:
                 db.execute('BEGIN IMMEDIATE')
                 body=json.loads(db.execute('SELECT body FROM portal_settings WHERE id=1').fetchone()[0]);body['watchlist']=watchlist
                 db.execute('UPDATE portal_settings SET body=? WHERE id=1',(json.dumps(body),))
-            return dict(status='Insufficient evidence',live=False,candidates=[dict(symbol=s,exchange='NSE',status='Insufficient evidence',sector='Unverified',missing=['Point-in-time fundamentals','Valuation evidence','Governance and corporate actions','Dated filings'],autoPurchase=False) for s in watchlist])
+            from fundamental_research import research_long_term
+            return research_long_term(values, watchlist)
         if values.get('horizon') != 'intraday': raise ValueError('Choose intraday or long-term.')
         universe=values.get('candles',{})
         if not isinstance(universe,dict) or any(not isinstance(s,str) or not re.fullmatch(r'[A-Z0-9&-]{1,30}',s) for s in universe):

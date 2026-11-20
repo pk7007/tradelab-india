@@ -22,6 +22,10 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent
 WEB = ROOT / "web"
+PAPER_BUILD_FILES = ("app.py", "paper.py", "paper_worker.py", "worker_runtime.py",
+                     "market_contract.py", "market_data.py", "intraday_contract.py")
+PAPER_BUILD = hashlib.sha256(b"".join(hashlib.sha256((ROOT / name).read_bytes()).digest()
+                                     for name in PAPER_BUILD_FILES)).hexdigest()
 KITE_API = "https://api.kite.trade"
 SESSIONS: dict[str, dict[str, Any]] = {}
 LOCK = threading.RLock()
@@ -51,8 +55,8 @@ LIVE_EXECUTION_READY = False  # Shared broker cash/inventory and exit reconcilia
 LIVE_READINESS_REASON = "Live execution is blocked pending shared broker cash/inventory, approved risk limits, and exit reconciliation integration."
 from trader_suite import TOOLS, dispatch
 from portal import Portal
-from announcements import Announcements
-ANNOUNCEMENTS = Announcements()
+
+
 from dashboard_news import DashboardNews
 NEWS_AGENT = DashboardNews(Path(os.environ.get('TRADELAB_NEWS_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'news-agent.sqlite'))))
 PORTAL = Portal(Path(os.environ.get('TRADELAB_PORTAL_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'portal.sqlite'))))
@@ -71,6 +75,12 @@ from worker_runtime import WorkerRuntime
 PAPER_WORKER = WorkerRuntime(PAPER, MARKET, NEWS_AGENT)
 from agent_service import AgentService
 AGENTS = AgentService(PORTAL.path.parent / 'agents.sqlite')
+from desk_coordinator import DeskCoordinator
+DESK = DeskCoordinator(NEWS_AGENT, MARKET, PAPER, PAPER_WORKER, AGENTS)
+from strategy_lab import StrategyLab
+STRATEGY_LAB = StrategyLab(PORTAL.path.parent / 'strategy-lab.sqlite', paper_engine=PAPER)
+from operations import Operations
+OPERATIONS = Operations([PORTAL.path, PAPER.path, EXPERIMENTS.path, EXECUTION.path, AGENTS.path, STRATEGY_LAB.path], PORTAL.path.parent)
 
 
 class KiteError(Exception):
@@ -280,7 +290,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if route == "/auth/kite/callback":
             self.kite_callback(urllib.parse.parse_qs(parsed.query))
             return
-        if route in {"/portal.js", "/portal.css", "/app.js", "/market.js", "/automation.js", "/account.js", "/trader.js", "/trader.css", "/evaluation.js", "/evaluation.css", "/paper.js", "/styles.css"}:
+        if route in {"/platform.js", "/portal.js", "/portal.css", "/app.js", "/market.js", "/automation.js", "/account.js", "/trader.js", "/trader.css", "/evaluation.js", "/evaluation.css", "/paper.js", "/styles.css"}:
             file_name = route[1:]
             mime = "text/javascript; charset=utf-8" if file_name.endswith(".js") else "text/css; charset=utf-8"
             try:
@@ -294,23 +304,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.error(404, "Not found.")
 
     def api_get(self, route: str, query: dict[str, list[str]]) -> None:
+        if route == '/api/desk':
+            self.json_response(200, DESK.status()); return
         if route == '/api/news-agent':
             self.json_response(200, NEWS_AGENT.status(getattr(MARKET,'master',[]))); return
         if route == '/api/announcements':
-            self.json_response(200, ANNOUNCEMENTS.status(getattr(MARKET,'master',[]))); return
+            self.json_response(200, NEWS_AGENT.status(getattr(MARKET,'master',[]),source='nse')); return
         session_id, session = self.session()
+        if route == '/api/strategy-lab':
+            self.json_response(200, STRATEGY_LAB.status()); return
+        if route == '/api/operations':
+            self.json_response(200, dict(storage=OPERATIONS.status(), paper=PAPER_WORKER.status(), agents=AGENTS.status(), liveExecutionReady=False)); return
         if route == '/api/agents':
             self.json_response(200, AGENTS.status()); return
         if route == '/api/paper-worker':
-            try: self.json_response(200, PAPER_WORKER.status())
+            try: self.json_response(200, dict(PAPER_WORKER.status(), paperBuild=PAPER_BUILD))
             except (sqlite3.Error,OSError): self.error(503,'Paper worker storage unavailable.')
             return
         if route == '/api/portal':
             try:
                 result=PORTAL.status()
-                cached=NEWS_AGENT.result
+                cached=NEWS_AGENT.status()
                 result['newsConfigured']=True
-                result['newsConnected']=any(source['status']=='fetched' for source in cached.get('sources',[]))
+                result['newsConnected']=not cached['stale']
                 result['newsHealth']=dict(status=cached.get('status','unchecked'),sources=cached.get('sources',[]))
                 self.json_response(200,result)
             except (sqlite3.Error, OSError): self.error(503, 'Portal storage is unavailable.')
@@ -385,9 +401,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except ValueError as exc:
             self.error(400, str(exc))
             return
+        if route == '/api/operations/backup':
+            try: self.json_response(200, OPERATIONS.backup())
+            except Exception: self.error(503, 'Private storage backup failed; review operations health.')
+            return
+        if route.startswith('/api/strategy-lab/'):
+            try:
+                action = route.rsplit('/',1)[-1]
+                if action == 'register': result=STRATEGY_LAB.register(values)
+                elif action == 'candidate': result=STRATEGY_LAB.add_candidate(values.get('id'),values.get('config'))
+                elif action == 'evaluate': result=STRATEGY_LAB.evaluate(values.get('id'),values.get('candidateId'),values.get('bars'),permitted=values.get('permitted'))
+                elif action == 'promote': result=STRATEGY_LAB.promote(values.get('id'),values.get('candidateId'))
+                elif action == 'rollback': result=STRATEGY_LAB.rollback(values.get('accountId'),values.get('reason'))
+                else: raise ValueError('Unknown strategy lab action.')
+                self.json_response(200,result)
+            except (ValueError,TypeError,KeyError) as exc: self.error(400,str(exc))
+            except Exception: self.error(503,'Strategy lab unavailable. Review its history before retrying.')
+            return
         if route.startswith('/api/agents/'):
             try:
-                if route == '/api/agents/enqueue': result=dict(id=AGENTS.enqueue(values))
+                if route == '/api/agents/enqueue':
+                    result=dict(id=AGENTS.enqueue(values))
+                    AGENTS.start()
                 elif route == '/api/agents/run': result=dict(id=AGENTS.run_once())
                 elif route == '/api/agents/cancel': AGENTS.cancel(values.get('id')); result=dict(cancelled=True)
                 elif route == '/api/agents/lifecycle':
@@ -754,10 +789,14 @@ def serve() -> None:
     server.daemon_threads = True
     print(f"TradeLab is available at http://{host}:{port} (local machine only). Press Ctrl+C to stop.")
     try:
+        NEWS_AGENT.start()
+        DESK.start()
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
+        DESK.stop()
+        NEWS_AGENT.stop()
         server.server_close()
 
 

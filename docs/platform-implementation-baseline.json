@@ -1,0 +1,28 @@
+{
+  "commit": "abc28e7",
+  "date": "2026-11-20",
+  "pythonTests": 249,
+  "privateLedgersBackedUp": 7,
+  "restoreDrillLedgers": 7,
+  "engineering": {
+    "data": 5,
+    "risk": 4,
+    "strategy": 5,
+    "agents": 2,
+    "recovery": 4,
+    "weighted": 4.1
+  },
+  "application": {
+    "journeys": 4,
+    "clarity": 5,
+    "recovery": 4,
+    "accessibility": 4,
+    "load": 0,
+    "weighted": 3.85
+  },
+  "notes": [
+    "Current source implements108 registered roles and3 handlers",
+    "Representative load not measured at baseline",
+    "Authenticated running app version and forward fills not acceptance tested"
+  ]
+}

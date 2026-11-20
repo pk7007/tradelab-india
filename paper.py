@@ -8,6 +8,7 @@ import sqlite3
 import uuid
 from research import timestamp, IST, validate_rows
 from strategy_contract import target_long, assumed_fill
+from market_contract import session_for
 import intraday_contract
 
 
@@ -149,12 +150,33 @@ class PaperEngine:
         last_buy_price = None
         initialized = False
         valid = True
+        reconstructed_config = None
         for row in db.execute('SELECT body FROM events WHERE account=? ORDER BY seq', (s['id'],)):
             event = json.loads(row[0])
             if event['type'] == 'created':
-                valid = valid and not initialized and event['config'] == s['config']
+                valid = valid and not initialized
                 initialized = True
                 cash = event['config']['capital']
+                reconstructed_config = event['config']
+            if event['type'] in ('strategy-promoted', 'strategy-rollback'):
+                next_config = event.get('config')
+                previous_config = event.get('previousConfig')
+                if (not initialized or quantity or previous_config != reconstructed_config
+                        or not isinstance(next_config, dict)):
+                    valid = False
+                    break
+                mutable = {'stopDistancePct', 'targetMultiple', 'entryEnd', 'squareOff', 'strategyRevision'}
+                previous_fixed = {key: value for key, value in previous_config.items() if key not in mutable}
+                next_fixed = {key: value for key, value in next_config.items() if key not in mutable}
+                try:
+                    intraday_contract.validate(next_config)
+                except (ValueError, TypeError, KeyError):
+                    valid = False
+                    break
+                if previous_fixed != next_fixed or next_config.get('strategy') != intraday_contract.VERSION:
+                    valid = False
+                    break
+                reconstructed_config = next_config
             if event['type'] != 'fill':
                 continue
             units, fee = event['quantity'], event['fee']
@@ -184,7 +206,7 @@ class PaperEngine:
         mismatches = [key for key,value in rebuilt.items() if not math.isclose(value,s[key],rel_tol=0,abs_tol=.0001)]
         if quantity != s['quantity']: mismatches.append('quantity')
         if s['lastBar'] != (last['stamp'] if last else None): mismatches.append('lastBar')
-        if not valid or not initialized: mismatches.append('ledger')
+        if not valid or not initialized or reconstructed_config != s['config']: mismatches.append('ledger')
         if s['config']['strategy'] == intraday_contract.VERSION and quantity:
             c=s['config'];raw=last_buy_price/(1+c['slippageBps']/10000) if last_buy_price else None
             expected=dict(stop=raw*(1-c['stopDistancePct']/100),target=raw+raw*c['stopDistancePct']/100*c['targetMultiple']) if raw else {}
@@ -193,10 +215,18 @@ class PaperEngine:
         return dict(matches=not mismatches, mismatches=mismatches, quantity=quantity, fills=fills,
                     unrealized=market_value-basis, **rebuilt)
 
-    def ingest(self, identity, rows, permitted, *, fixture_instrument=None, transaction_guard=None):
+    def ingest(self, identity, rows, permitted, *, fixture_instrument=None, transaction_guard=None, session_calendar=None):
         if permitted is not True: raise ValueError('Confirm permission for local candle retention.')
         if not isinstance(rows, list) or not 1 <= len(rows) <= 1000: raise ValueError('Supply 1–1,000 completed five-minute bars.')
         cutoff = dt.datetime.now(IST)
+        sessions = {}
+        def bounds(date):
+            if date not in sessions:
+                session = session_for(session_calendar, date=date, as_of=cutoff.isoformat())
+                if not session['open']:
+                    raise ValueError('Candle conflicts with closed session calendar date.')
+                sessions[date] = (timestamp(session['start']), timestamp(session['end']))
+            return sessions[date]
         normalized = []
         for row in rows:
             if not isinstance(row, dict): raise ValueError('Each candle must be an object.')
@@ -205,7 +235,13 @@ class PaperEngine:
                 if any(isinstance(row[k], bool) for k in ('open','high','low','close','volume')): raise ValueError('Boolean candle value.')
                 validate_rows([row], cutoff)
                 if stamp + dt.timedelta(minutes=5) > cutoff: raise ValueError('Incomplete or future candle.')
-                if stamp.weekday() >= 5 or stamp.second or stamp.microsecond or stamp.minute % 5 or not dt.time(9,15) <= stamp.time() <= dt.time(15,25):
+                if stamp.second or stamp.microsecond or stamp.minute % 5:
+                    raise ValueError('Candle starts must align to five minutes.')
+                if session_calendar is not None:
+                    start, end = bounds(stamp.date().isoformat())
+                    if not start <= stamp or stamp + dt.timedelta(minutes=5) > end:
+                        raise ValueError('Candle conflicts with supplied session calendar bounds.')
+                elif stamp.weekday() >= 5 or not dt.time(9,15) <= stamp.time() <= dt.time(15,25):
                     raise ValueError('Use weekday NSE session starts, 09:15–15:25 IST, aligned to five minutes.')
                 clean = dict(date=stamp.isoformat(), **{k:float(row[k]) for k in ('open','high','low','close','volume')})
                 if clean['volume'] < 0 or clean['high'] > 1e9: raise ValueError('Nonnegative volume and prices below 1e9 required.')
@@ -250,8 +286,21 @@ class PaperEngine:
                     previous = timestamp(s['lastBar'])
                     if stamp <= previous: raise ValueError('Out-of-order candle.')
                     if stamp.date() == previous.date() and stamp-previous != dt.timedelta(minutes=5): raise ValueError('Missing five-minute candle; import the missing interval first.')
-                    if stamp.date() != previous.date() and (previous.time() != dt.time(15,25) or stamp.time() != dt.time(9,15)):
-                        raise ValueError('Incomplete session boundary; import the remaining candles first.')
+                    if stamp.date() != previous.date():
+                        if session_calendar is None:
+                            complete = previous.time() == dt.time(15,25) and stamp.time() == dt.time(9,15)
+                        else:
+                            _, previous_end = bounds(previous.date().isoformat())
+                            current_start, _ = bounds(stamp.date().isoformat())
+                            complete = previous + dt.timedelta(minutes=5) == previous_end and stamp == current_start
+                            missing_date = previous.date() + dt.timedelta(days=1)
+                            while missing_date < stamp.date():
+                                skipped = session_for(session_calendar, date=missing_date.isoformat(), as_of=cutoff.isoformat())
+                                if skipped['open']:
+                                    raise ValueError('Missing open session; import its completed candles first.')
+                                missing_date += dt.timedelta(days=1)
+                        if not complete:
+                            raise ValueError('Incomplete session boundary; import the remaining candles first.')
                 day = stamp.date().isoformat()
                 if s['config']['strategy'] == intraday_contract.VERSION:
                     events=intraday_contract.advance(s,bar)
