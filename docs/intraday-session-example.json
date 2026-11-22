@@ -1,76 +1,156 @@
-{
-  "mode": "Controlled replay through actual browser and HTTP API",
-  "viewport": "390x844",
-  "symbol": "DEMO",
-  "capital": 1000.0,
-  "cash": 998.1392504500001,
-  "fees": 1.8404995499999997,
-  "realized": -1.8607495499999231,
-  "quantity": 0,
-  "final": true,
-  "fills": [
-    {
-      "seq": 69,
-      "recordedAt": "2026-11-20T17:07:54.982462+00:00",
-      "type": "fill",
-      "bar": "2026-01-02T11:05:00+05:30",
-      "side": "BUY",
-      "quantity": 9,
-      "price": 102.2511,
-      "fee": 0.9202598999999998,
-      "signalAt": "2026-01-02T11:00:00+05:30",
-      "reason": "SMA completed-close entry; unfilled remainder cancelled"
-    },
-    {
-      "seq": 84,
-      "recordedAt": "2026-11-20T17:07:55.449999+00:00",
-      "type": "fill",
-      "bar": "2026-01-02T11:10:00+05:30",
-      "side": "SELL",
-      "quantity": 9,
-      "price": 102.24885,
-      "fee": 0.9202396499999999,
-      "signalAt": "2026-01-02T11:05:00+05:30",
-      "reason": "User ended paper session"
-    }
-  ],
-  "selection": {
-    "universeCount": 1,
-    "quoteCount": 1,
-    "candleChecks": 1,
-    "candidates": [
+[
+  {
+    "scenario": "qualifying",
+    "mode": "Controlled replay through browser, HTTP, real scheduler loop and isolated ledger",
+    "viewport": "390x844",
+    "symbol": "DEMO",
+    "capital": 10000.0,
+    "cash": 10435.1616328,
+    "fees": 20.2921672,
+    "realized": 435.1616328,
+    "quantity": 0,
+    "final": true,
+    "fills": [
       {
-        "symbol": "DEMO",
-        "score": 0.7414730598121588,
-        "bar": "2026-01-02T10:55:00+05:30",
-        "estimatedQuantity": 9,
-        "plan": {
-          "quantity": 9,
-          "entry": 102.1,
-          "stop": 100.05799999999999,
-          "target": 106.184,
-          "estimatedStopLoss": 21.107142188999873,
-          "estimatedCapital": 920.2788094499997,
-          "riskPerUnit": 2.345238020999986,
-          "grossRewardRisk": 2.0,
-          "estimatedNetTargetProfit": 33.944184378000315,
-          "netRewardRisk": 1.6081847591707867,
-          "caveat": "Illustrative long-only sizing. Stop gaps and unavailable fills can exceed maxLoss. Costs are user assumptions, not verified taxes."
-        }
+        "seq": 69,
+        "recordedAt": "2026-11-22T13:08:33.497793+00:00",
+        "type": "fill",
+        "bar": "2026-01-02T11:05:00+05:30",
+        "side": "BUY",
+        "quantity": 97,
+        "price": 102.2511,
+        "fee": 9.9183567,
+        "signalAt": "2026-01-02T11:00:00+05:30",
+        "reason": "SMA completed-close entry; unfilled remainder cancelled",
+        "reviewId": "b5f8b33c10daf21635303383683319cdd8746c59c321da42bcb2535377c915f1"
+      },
+      {
+        "seq": 599,
+        "recordedAt": "2026-11-22T13:08:44.803879+00:00",
+        "type": "fill",
+        "bar": "2026-01-02T15:05:00+05:30",
+        "side": "SELL",
+        "quantity": 97,
+        "price": 106.9465,
+        "fee": 10.3738105,
+        "signalAt": "2026-01-02T15:00:00+05:30",
+        "reason": "Session square-off or recovery",
+        "reviewId": "b5f8b33c10daf21635303383683319cdd8746c59c321da42bcb2535377c915f1"
       }
     ],
-    "excluded": [],
-    "checkedAt": "2026-01-02T11:00:00+05:30",
-    "ranking": "Top 20 affordable turnover-proxy names, then shared SMA spread.",
-    "strategyVersion": "intraday-v1",
-    "examinedSymbols": [
-      "DEMO"
+    "selection": {
+      "universeCount": 1,
+      "quoteCount": 1,
+      "candleChecks": 1,
+      "candidates": [
+        {
+          "symbol": "DEMO",
+          "score": 0.7414730598121588,
+          "bar": "2026-01-02T10:55:00+05:30",
+          "estimatedQuantity": 97,
+          "plan": {
+            "quantity": 97,
+            "entry": 102.1,
+            "stop": 100.05799999999999,
+            "target": 142.94000000000003,
+            "estimatedStopLoss": 227.48808803699865,
+            "estimatedCapital": 9918.560501849997,
+            "riskPerUnit": 2.345238020999986,
+            "grossRewardRisk": 20.0,
+            "estimatedNetTargetProfit": 3925.828660740006,
+            "netRewardRisk": 17.257293314195465,
+            "caveat": "Illustrative long-only sizing. Stop gaps and unavailable fills can exceed maxLoss. Costs are user assumptions, not verified taxes."
+          }
+        }
+      ],
+      "excluded": [],
+      "checkedAt": "2026-01-02T11:00:00+05:30",
+      "ranking": "Top 20 affordable turnover-proxy names, then shared SMA spread.",
+      "strategyVersion": "intraday-v1",
+      "examinedSymbols": [
+        "DEMO"
+      ],
+      "quoteExcluded": [],
+      "selectedSymbol": "DEMO",
+      "selectedAt": "2026-01-02T11:00:00+05:30"
+    },
+    "receiptCount": 71,
+    "oracle": {
+      "quantity": 97,
+      "buyPrice": 102.2511,
+      "sellPrice": 106.9465,
+      "fees": 20.2921672,
+      "cash": 10435.161632800002,
+      "pnl": 435.1616328000018
+    },
+    "schedulerCycles": 501,
+    "browserTradingMutations": [
+      "/api/auto-selection/start"
     ],
-    "quoteExcluded": [],
-    "selectedSymbol": "DEMO",
-    "selectedAt": "2026-01-02T11:00:00+05:30"
+    "pageErrors": [],
+    "brokerOrderCalls": 0
   },
-  "receiptCount": 24,
-  "pageErrors": [],
-  "brokerOrderCalls": 0
-}
+  {
+    "scenario": "no-trade",
+    "mode": "Controlled replay through browser, HTTP, real scheduler loop and isolated ledger",
+    "viewport": "390x844",
+    "symbol": "No stock selected",
+    "capital": 10000.0,
+    "cash": 10000.0,
+    "fees": 0,
+    "realized": 0,
+    "quantity": 0,
+    "final": true,
+    "fills": [],
+    "selection": {
+      "state": "no-qualifying-candidate",
+      "candidates": [],
+      "excluded": [
+        {
+          "symbol": "DEMO",
+          "reason": "No modeled liquidity."
+        }
+      ],
+      "live": false,
+      "newsContext": {
+        "attached": 0,
+        "stale": true,
+        "checkedAt": "2026-01-02T13:55:00+05:30",
+        "status": "disconnected",
+        "executionAllowed": false,
+        "scope": "Advisory context; no signal, risk or order authority."
+      },
+      "universeCount": 1,
+      "quoteCount": 1,
+      "candleChecks": 1,
+      "checkedAt": "2026-01-02T13:55:00+05:30",
+      "nextScanAt": "2026-01-02T14:00:00+05:30",
+      "strategyVersion": "intraday-v1",
+      "examinedSymbols": [
+        "DEMO"
+      ],
+      "quoteExcluded": [],
+      "ranking": "Top 20 affordable turnover-proxy names, then shared SMA spread."
+    },
+    "receiptCount": 0,
+    "oracle": {
+      "cash": 10000,
+      "fees": 0,
+      "pnl": 0,
+      "quantity": 0
+    },
+    "schedulerCycles": 361,
+    "browserTradingMutations": [
+      "/api/auto-selection/start"
+    ],
+    "pageErrors": [],
+    "brokerOrderCalls": 0
+  },
+  {
+    "scenario": "guided-setup-news-alerts-recovery",
+    "pageErrors": [],
+    "pausedAccountCreated": true,
+    "isolatedRestore": true,
+    "brokerOrderCalls": 0
+  }
+]

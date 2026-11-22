@@ -11,7 +11,7 @@ http://127.0.0.1:8765/. Existing account history stays in the configured local
 SQLite storage. A fresh server starts disarmed and requires broker reconnection.
 
 Choose an imported Intraday v1 assumptions account, review its actual limits,
-connect Zerodha in Settings and confirm approved storage and the displayed
+connect Zerodha in Settings and verify saved storage permission and the displayed
 calendar. Start paper trading activates discovery and completed-candle processing
 inside a confirmed session. Calendar coverage and market-dependent activation
 remain subject to the existing reviewed dates and deferral.
@@ -89,27 +89,18 @@ managed-account mutation bypasses and optional news failure.
 
 With Playwright and its Chromium installed in the testing environment, run
 `python scripts/check_intraday_ui.py`. This launches an isolated server and
-drives the real mobile browser controls through Start, Pause and End. It checks
-the closing report after reload and writes `docs/intraday-session-example.json`.
-It uses no broker credentials and asserts zero broker order calls. The example
-keeps the fixture's older ₹1,000 profile to verify saved-limit precedence.
+drives one Start click and the real selector loop through automatic closure in two
+isolated sessions. The qualifying fixture bought and sold 97 simulated DEMO
+shares, ending at ₹10,435.16 after ₹20.29 of fees. The no-trade fixture retained
+₹10,000. Each had zero further trading clicks and zero broker orders. Both reports
+survived a page reload. These figures describe controlled price inputs.
 
-The recorded sample ends flat with ₹998.13925045 cash, ₹1.84049955 fees and
-−₹1.86074955 realized result from two modeled fills. The loss is retained in the
-report. This controlled replay is independent of current market conditions.
-
-The completed regression run passed 357 Python tests and eight Node test files.
-The actual browser-to-HTTP-to-ledger check passed at 390 × 844 pixels, including
-reload, with zero page errors and zero broker-order calls. The independent
-engineering review scored this offline restructure 9/10 across correctness,
-integration, resilience, verification and usability. Operational dependencies
-and remaining control complexity account for the deductions. This scoped score
-does not replace the broader platform audit or rate investment performance.
+The [approval inventory](paper-approval-audit.md) covers standing permissions,
+service reviews, protective exits and the independent manual tools.
 
 ## Remaining acceptance
 
 Forward-market observation, current broker login and source-backed session
-calendar checks remain necessary. Strategy profitability, a validated
-news-to-signal rule, and pre-entry agent approval remain unverified. Long-term
+calendar checks remain necessary. Strategy profitability and a news-to-signal rule still require validation. Long-term
 research implementation follows this intraday acceptance. Real-money activation
 has its own broker inventory, cash, order-reconciliation and approval dependencies.

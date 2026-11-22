@@ -10,19 +10,29 @@ from research import timestamp, IST, validate_rows
 from strategy_contract import target_long, assumed_fill
 from market_contract import session_for
 import intraday_contract
+from entry_review import EntryReviewer, VERSION as ENTRY_REVIEW_VERSION, digest, evaluate, IDENTITIES
+from agent_handlers import execute as workflow_handler
+from trade_workflow import entry_handoffs
 
 
 class PaperEngine:
     def __init__(self, path):
         self.path = Path(path)
+        self.entry_reviewer=EntryReviewer()
+        self.workflow_handler=workflow_handler
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.db() as db:
             db.executescript('''CREATE TABLE IF NOT EXISTS accounts(id TEXT PRIMARY KEY, body TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY, account TEXT NOT NULL, at TEXT NOT NULL, body TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS bars(account TEXT NOT NULL, stamp TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(account,stamp));
-            CREATE TABLE IF NOT EXISTS receipts(account TEXT NOT NULL, stamp TEXT NOT NULL, received TEXT NOT NULL, source TEXT NOT NULL, instrument TEXT NOT NULL, PRIMARY KEY(account,stamp));''')
+            CREATE TABLE IF NOT EXISTS receipts(account TEXT NOT NULL, stamp TEXT NOT NULL, received TEXT NOT NULL, source TEXT NOT NULL, instrument TEXT NOT NULL, PRIMARY KEY(account,stamp));
+            CREATE TABLE IF NOT EXISTS entry_reviews(id TEXT PRIMARY KEY,account TEXT NOT NULL,state TEXT NOT NULL,body TEXT NOT NULL);''')
+            db.execute("UPDATE entry_reviews SET state='invalidated' WHERE state='eligible'")
             for row in db.execute('SELECT id,body FROM accounts').fetchall():
                 state = json.loads(row['body'])
+                if state.get('pending',{} ) and state['pending'].get('reviewId'):
+                    state['pending']=None
+                    self.save(db,state,dict(type='entry-review-invalidated',reason='Process restart invalidates unused entry evidence.'))
                 if state['status'] == 'running' or state.get('feed',{}).get('status')=='connected (fixture)':
                     if state['status']=='running': state['status'] = 'paused'
                     if 'feed' in state: state['feed']['status']='disconnected'
@@ -110,6 +120,8 @@ class PaperEngine:
                 raise ValueError('Paper ledger mismatch; investigate before resuming or requesting an exit.')
             if action == 'resume_entries' and s.get('endRequested'):
                 raise ValueError('This session is ending; new entries cannot resume.')
+            if action in ('pause','stop','pause_entries','cancel_entries','end_session'):
+                db.execute("UPDATE entry_reviews SET state='invalidated' WHERE account=? AND state='eligible'",(identity,))
             if action == 'end_session':
                 if s.get('endRequested'):
                     return s
@@ -239,7 +251,126 @@ class PaperEngine:
         return dict(matches=not mismatches, mismatches=mismatches, quantity=quantity, fills=fills,
                     unrealized=market_value-basis, **rebuilt)
 
-    def ingest(self, identity, rows, permitted, *, fixture_instrument=None, transaction_guard=None, session_calendar=None):
+    def review_entry(self, db, state, bar, stage, pending, context):
+        """Review and consume entry authority inside the candle transaction."""
+        context=context or {}
+        clock=context.get('clock',lambda:dt.datetime.now(IST))
+        now=clock()
+        if not isinstance(now,dt.datetime) or now.tzinfo is None:
+            now=dt.datetime.now(IST)
+        config_hash=digest(state['config'])
+        worker=db.execute('SELECT * FROM paper_workers WHERE account=?',(state['id'],)).fetchone()
+        owner_valid=bool(worker and worker['enabled'] and worker['owner']==context.get('owner')
+                         and worker['epoch']==context.get('epoch') and worker['expires']>now.timestamp())
+        authorized=owner_valid
+        try:
+            if context.get('authorize'):
+                context['authorize']()
+        except Exception:
+            authorized=False
+        controls=not state.get('entriesPaused') and not state.get('endRequested') and not state['riskHalted'] and not state['quantity']
+        post_review_valid=True
+        if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='session_evidence_runs'").fetchone():
+            latest=db.execute('''SELECT r.state FROM session_evidence_runs r WHERE r.account=?
+                AND r.domain IN ('paper-execution','trade-risk','order-position-reconciliation')
+                AND r.rowid=(SELECT MAX(rowid) FROM session_evidence_runs WHERE account=r.account AND domain=r.domain)''',
+                (state['id'],)).fetchall()
+            post_review_valid=all(row['state']=='reviewed' for row in latest)
+        if stage=='consume':
+            row=db.execute('SELECT state,body FROM entry_reviews WHERE id=? AND account=?',
+                           (pending.get('reviewId'),state['id'])).fetchone()
+            review=json.loads(row['body']) if row else {}
+            original=db.execute('SELECT body FROM bars WHERE account=? AND stamp=?',
+                                (state['id'],pending['signalAt'])).fetchone()
+            valid=bool(row and row['state']=='eligible' and review['status']=='eligible'
+                       and review.get('handoffs',{}).get('state')=='reviewed'
+                       and review['configHash']==config_hash and review['symbol']==state['config']['symbol']
+                       and review['session']==bar['date'][:10] and review['signalAt']==pending['signalAt']
+                       and review['workerOwner']==context.get('owner') and review['workerEpoch']==context.get('epoch')
+                       and original and digest(json.loads(original['body']))==review['signalBarHash']
+                       and now<=timestamp(review['expiresAt']) and owner_valid and authorized and controls and post_review_valid
+                       and target_long(state['closes'])
+                       and bar['date'][11:16]<state['config']['entryEnd'])
+            if not valid:
+                if row:
+                    db.execute("UPDATE entry_reviews SET state='invalidated' WHERE id=?",(pending['reviewId'],))
+                reason='Entry review expired, changed, revoked or unavailable; BUY cancelled.'
+                self.save(db,state,dict(type='entry-review-invalidated',reviewId=pending.get('reviewId'),reason=reason))
+                return dict(status='skip',reason=reason,maxQuantity=0)
+            if timestamp(bar['date'])<timestamp(review['reviewedAt']):
+                return dict(status='waiting',reason='Waiting for a modeled open after the actual review time.',maxQuantity=0)
+            maximum=min(review['maxQuantity'],intraday_contract.entry_size(state,bar['open'],bar['volume']))
+            db.execute("UPDATE entry_reviews SET state='consumed' WHERE id=? AND state='eligible'",(pending['reviewId'],))
+            self.save(db,state,dict(type='entry-review-consumed',reviewId=pending['reviewId'],maxQuantity=maximum,
+                                   consumedAt=now.isoformat(),modeledFillAt=bar['date'],receivedAt=context.get('receivedAt'),
+                                   parentTaskId=review['handoffs']['finalTaskId']))
+            return dict(status='eligible' if maximum else 'skip',maxQuantity=maximum,
+                        reason='Reviewed quantity cap consumed.' if maximum else 'No shares fit current fill-time risk or liquidity.')
+        instrument=context.get('instrument',{})
+        selection_valid=bool(instrument.get('exchange')=='NSE' and instrument.get('symbol')==state['config']['symbol']
+                             and type(instrument.get('token')) is int and instrument['token']>0)
+        if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='auto_selection'").fetchone():
+            selected=db.execute('SELECT day,body FROM auto_selection WHERE account=?',(state['id'],)).fetchone()
+            if selected:
+                allocation=json.loads(selected['body'])
+                selection_valid=selection_valid and selected['day']==bar['date'][:10] and allocation['instrument']==instrument
+        evidence=dict(accountId=state['id'],symbol=state['config']['symbol'],session=bar['date'][:10],
+                      strategyVersion=state['config']['strategy'],configHash=config_hash,
+                      signalAt=bar['date'],signalBarHash=digest(bar),closes=list(state['closes']),
+                      receivedAt=context.get('receivedAt'),reviewedAt=now.isoformat(),
+                      selectionValid=selection_valid,authorized=authorized,ownerValid=owner_valid,
+                      entriesPaused=not controls,riskHalted=state['riskHalted'],
+                      maxQuantity=intraday_contract.entry_size(state,bar['close'],bar['volume']),
+                      workerOwner=context.get('owner'),workerEpoch=context.get('epoch'),
+                      newsEffect='advisory-only',requiredNewsAvailable=True,postReviewValid=post_review_valid)
+        review_id=digest(dict(account=state['id'],signal=bar['date'],config=config_hash,
+                              owner=context.get('owner'),epoch=context.get('epoch')))
+        try:
+            if self.entry_reviewer is None:
+                raise ValueError('Entry reviewer unavailable.')
+            decision=self.entry_reviewer.review(evidence)
+            baseline=evaluate(evidence)
+            if baseline['status']!='eligible':
+                decision=baseline
+            if (set(decision)!={'status','reason','maxQuantity','reviewers'}
+                    or not isinstance(decision['reason'],str) or len(decision['reason'])>500
+                    or not isinstance(decision['reviewers'],list)
+                    or len(decision['reviewers'])!=len(IDENTITIES)):
+                raise ValueError('Invalid review evidence.')
+            for item, identity in zip(decision['reviewers'],IDENTITIES):
+                if (not isinstance(item,dict) or set(item)!={'identity','status','reason'}
+                        or item['identity']!=identity or not isinstance(item['reason'],str)
+                        or len(item['reason'])>500 or item['status'] not in ('eligible','skip','temporarily-blocked')
+                        or (decision['status']=='eligible' and item['status']!='eligible')):
+                    raise ValueError('Invalid service verdict.')
+            if (decision.get('status') not in ('eligible','skip','temporarily-blocked')
+                    or type(decision.get('maxQuantity')) is not int
+                    or not 0<=decision['maxQuantity']<=evidence['maxQuantity']):
+                raise ValueError('Invalid entry review result.')
+        except Exception:
+            decision=dict(status='temporarily-blocked',reason='Entry reviewer unavailable or deadline exceeded; no BUY authorized.',
+                          maxQuantity=0,reviewers=[])
+        reviewed=clock()
+        expires=min(reviewed+dt.timedelta(minutes=15),dt.datetime.combine(timestamp(bar['date']).date(),
+                    dt.time.fromisoformat(state['config']['entryEnd']),IST))
+        if reviewed-timestamp(bar['date'])-dt.timedelta(minutes=5)>dt.timedelta(seconds=90) or reviewed>=expires:
+            decision.update(status='temporarily-blocked',reason='Entry evidence became stale during review.',maxQuantity=0)
+        try:
+            handoffs=entry_handoffs(evidence,state['config'],bar,state['cash'],instrument,decision,self.workflow_handler)
+        except Exception:
+            handoffs=dict(version='intraday-handoffs-v1',state='blocked',tasks=[],reason='Required handoff evidence unavailable.')
+        if handoffs['state']!='reviewed' and decision['status']=='eligible':
+            decision.update(status='temporarily-blocked',reason='Required agent handoff did not pass; no BUY authorized.',maxQuantity=0)
+        review={**evidence,**decision,'reviewId':review_id,'version':ENTRY_REVIEW_VERSION,
+                'handoffs':handoffs,
+                'evidenceHash':digest(evidence),'expiresAt':expires.isoformat()}
+        review['reviewedAt']=reviewed.isoformat()
+        db.execute('INSERT INTO entry_reviews VALUES(?,?,?,?)',
+                   (review_id,state['id'],'eligible' if review['status']=='eligible' else 'rejected',json.dumps(review,allow_nan=False)))
+        self.save(db,state,dict(type='entry-review',**review))
+        return review
+
+    def ingest(self, identity, rows, permitted, *, fixture_instrument=None, transaction_guard=None, session_calendar=None, entry_context=None):
         if permitted is not True: raise ValueError('Confirm permission for local candle retention.')
         if not isinstance(rows, list) or not 1 <= len(rows) <= 1000: raise ValueError('Supply 1–1,000 completed five-minute bars.')
         cutoff = dt.datetime.now(IST)
@@ -335,7 +466,10 @@ class PaperEngine:
                         s['pending']=None
                     else:
                         deferred=None
-                    events=intraday_contract.advance(s,bar)
+                    managed=db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='paper_workers'").fetchone() and db.execute(
+                        'SELECT 1 FROM paper_workers WHERE account=?',(identity,)).fetchone()
+                    gate=(lambda stage,state,candle,pending:self.review_entry(db,state,candle,stage,pending,entry_context)) if managed else None
+                    events=intraday_contract.advance(s,bar,entry_gate=gate)
                     if deferred and s['quantity'] and not s.get('pending'):
                         s['pending']=deferred
                     db.execute('INSERT INTO bars VALUES(?,?,?)',(identity,bar['date'],encoded))

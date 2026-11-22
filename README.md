@@ -12,7 +12,7 @@ TradeLab brings market data, strategy evaluation, risk planning and reviewed man
 
 Latest full algorithm audit: [complete audit and pending steps](docs/complete-algorithm-audit-2026-11-20.md).
 
-Latest review: [20 November gap audit](docs/gap-audit-2026-11-20.md) and [external-source procurement plan](docs/external-source-plan.md). The local assessment is 5.45/10; live operation remains materially incomplete; the new paper worker has offline regression coverage but no sustained authenticated forward-run evidence. The audit fixes order-conflict handling, reservation integrity, revision/cursor races and stale frontend decisions. NSE RSS context is implemented; Moneycontrol remains an offline mock adapter. No score represents a probability of profit.
+Latest whole-application review: [22 November full audit](docs/full-audit-2026-11-22.md), rated **7.2/10** for the full requested platform. The unattended paper workflow received **9/10** for offline engineering, and full-platform integration is **7/10**. Actual-market performance and profitability remain unverified. The [integration record](docs/integration-2026-11-22.md), [UI audit](docs/ui-ux-audit-2026-11-22.md) and [external-source plan](docs/external-source-plan.md) detail the remaining acceptance work. Historical ratings remain in the [21 November assessment](docs/application-review-2026-11-21.md).
 
 [Get started](#quick-start) · [Features](#features) · [Evaluation](#strategy-evaluation) · [Roadmap](#roadmap) · [Documentation](#documentation)
 
@@ -23,7 +23,7 @@ Latest review: [20 November gap audit](docs/gap-audit-2026-11-20.md) and [extern
 - **Reproducible evaluation:** CSV/JSON inputs, chronological validation, final holdout, matched buy-and-hold comparison and cost sensitivity.
 - **Risk planning:** whole-share position sizing, exposure limits, remaining daily loss checks and explicit paper-order approvals.
 - **Durable paper accounts:** imported-candle SMA replay with persisted fills, costs, duplicate protection and restart recovery. An opt-in fenced worker can poll completed Kite candles with explicit retention/calendar confirmation; credentials stay in memory.
-- **Integrated news agent:** five-minute personal NSE/ET/Google RSS checks in Intraday research and paper-worker context, with per-source freshness, exact NSE company mapping and no headline-triggered orders. See [news agent](docs/news-agent.md).
+- **Integrated news agent:** the app collector checks due NSE/ET/Google RSS sources on a 30-second interval, with per-source retry delays, freshness and exact NSE company mapping. Publisher delivery time determines when new items become available. News supplies research context. See [news agent](docs/news-agent.md).
 - **Source-aware analysis:** imported watchlist news, publication/availability timestamps, deduplication and structured earnings comparisons.
 - **Automation foundation:** versioned strategy drafts, a SQLite intent ledger and audit history. Automated live dispatch is not connected.
 - **Recovery and research evidence:** durable manual intent reconciliation, mock shared cash/share reservations, and a local experiment registry that flags repeated holdout viewing. These are separate components; they do not constitute a unified live execution system.

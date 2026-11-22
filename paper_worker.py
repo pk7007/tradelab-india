@@ -37,10 +37,11 @@ _FAILURE_CODES = {
 
 
 class PaperWorker:
-    def __init__(self, engine, fetch, clock=lambda: dt.datetime.now(UTC), lease_seconds=90):
+    def __init__(self, engine, fetch, clock=lambda: dt.datetime.now(UTC), lease_seconds=90, entry_authorized=None):
         if isinstance(lease_seconds,bool) or not isinstance(lease_seconds,(int,float)) or not math.isfinite(lease_seconds) or not 15<=lease_seconds<=300:
             raise ValueError('Lease must be 15–300 seconds.')
         self.engine=engine;self.fetch=fetch;self.clock=clock;self.lease_seconds=lease_seconds
+        self.entry_authorized=entry_authorized
         self.owner=uuid.uuid4().hex;self.account=None;self.epoch=None;self.lock=threading.Lock()
         self.detail=dict(state='disarmed',enabled=False,live=False,mode='observed-candle-paper',lastError=None)
         with engine.db() as db:
@@ -92,6 +93,9 @@ class PaperWorker:
                     if exit_open + dt.timedelta(minutes=5) >= close:
                         raise ValueError('Saved square-off candle must complete strictly before each continuous-session close.')
             if not self.engine.reconcile_in(db,s)['matches']: raise ValueError('Paper ledger mismatch; worker cannot arm.')
+            db.execute("UPDATE entry_reviews SET state='invalidated' WHERE account=? AND state='eligible'",(account_id,))
+            if s.get('pending') and s['pending']['side']=='BUY':
+                s['pending']=None
             if db.execute('SELECT 1 FROM paper_workers WHERE account<>? AND enabled=1 AND expires>? LIMIT 1',
                           (account_id,now.timestamp())).fetchone():
                 raise ValueError('Another worker owns an active paper account.')
@@ -158,7 +162,9 @@ class PaperWorker:
                 db.execute('UPDATE paper_workers SET body=?,expires=? WHERE account=?',(json.dumps(body),now.timestamp()+self.lease_seconds,self.account))
                 self.detail=body
             calls+=1
-        return self.engine.ingest(self.account,rows,True,transaction_guard=guard,session_calendar=calendar)
+        return self.engine.ingest(self.account,rows,True,transaction_guard=guard,session_calendar=calendar,
+            entry_context=dict(owner=self.owner,epoch=self.epoch,instrument=dict(self.detail['instrument']),
+                               clock=self._now,receivedAt=received.isoformat(),authorize=self.entry_authorized))
 
     def tick(self):
         if not self.account: raise ValueError('Explicitly arm a paper worker first.')

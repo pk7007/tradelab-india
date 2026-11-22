@@ -12,6 +12,8 @@ __pycache__/
 venv/
 .pytest_cache/
 .mypy_cache/
+.tools/
+graphify-out/
 
 # Editor and operating-system files
 .DS_Store

@@ -66,6 +66,7 @@ class DeskCoordinator:
             except Exception:
                 state, detail = 'unavailable', dict(reason='Source check failed')
             departments.append(dict(name=name, state=state, detail=detail))
+        self.agents.review_desk_observations()
         tasks = []
         for department in departments:
             key = 'desk-v1-' + str(int(now.timestamp()) // 300) + '-' + department['name']

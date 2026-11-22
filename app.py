@@ -14,6 +14,8 @@ import socket
 import sqlite3
 import threading
 import time
+import subprocess
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -24,7 +26,10 @@ ROOT = Path(__file__).resolve().parent
 WEB = ROOT / "web"
 PAPER_BUILD_FILES = ("app.py", "paper.py", "paper_worker.py", "worker_runtime.py",
                      "market_contract.py", "market_data.py", "intraday_contract.py", "auto_selector.py",
-                     "intraday_session.py", "session_evidence.py", "desk_coordinator.py")
+                     "intraday_session.py", "session_evidence.py", "desk_coordinator.py", "entry_review.py",
+                     "strategy_contract.py", "research.py", "research_context.py",
+                     "integrated_news.py", "syndication.py", "syndication_transport.py",
+                     "trade_workflow.py", "agent_handlers.py", "agent_catalog.py")
 PAPER_BUILD = hashlib.sha256(b"".join(hashlib.sha256((ROOT / name).read_bytes()).digest()
                                      for name in PAPER_BUILD_FILES)).hexdigest()
 KITE_API = "https://api.kite.trade"
@@ -59,7 +64,10 @@ from portal import Portal
 
 
 from dashboard_news import DashboardNews
-NEWS_AGENT = DashboardNews(Path(os.environ.get('TRADELAB_NEWS_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'news-agent.sqlite'))))
+from integrated_news import IntegratedNews, LicensedNews
+NEWS_AGENT = IntegratedNews(
+    DashboardNews(Path(os.environ.get('TRADELAB_NEWS_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'news-agent.sqlite')))),
+    LicensedNews(os.environ, Path(os.environ.get('TRADELAB_SYNDICATION_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'licensed-news.sqlite')))))
 PORTAL = Portal(Path(os.environ.get('TRADELAB_PORTAL_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'portal.sqlite'))))
 from paper import PaperEngine
 PAPER = PaperEngine(Path(os.environ.get('TRADELAB_PAPER_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'paper.sqlite'))))
@@ -98,7 +106,10 @@ DESK = DeskCoordinator(NEWS_AGENT, MARKET, PAPER, PAPER_WORKER, AGENTS, AUTO_SEL
 from strategy_lab import StrategyLab
 STRATEGY_LAB = StrategyLab(PORTAL.path.parent / 'strategy-lab.sqlite', paper_engine=PAPER)
 from operations import Operations
-OPERATIONS = Operations([PORTAL.path, PAPER.path, EXPERIMENTS.path, EXECUTION.path, AGENTS.path, STRATEGY_LAB.path], PORTAL.path.parent)
+from operational_alerts import OperationalAlerts
+ALERTS = OperationalAlerts(PORTAL.path.parent / 'operational-alerts.sqlite')
+OPERATIONS = Operations([PORTAL.path, PAPER.path, EXPERIMENTS.path, EXECUTION.path, AGENTS.path, STRATEGY_LAB.path, ALERTS.path], PORTAL.path.parent,
+                        paper_engine=PAPER, alerts=ALERTS)
 
 
 class KiteError(Exception):
@@ -308,7 +319,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if route == "/auth/kite/callback":
             self.kite_callback(urllib.parse.parse_qs(parsed.query))
             return
-        if route in {"/platform.js", "/portal.js", "/portal.css", "/app.js", "/market.js", "/automation.js", "/account.js", "/trader.js", "/trader.css", "/evaluation.js", "/evaluation.css", "/paper.js", "/styles.css"}:
+        if route in {"/workspace-tools.js", "/platform.js", "/portal.js", "/portal.css", "/app.js", "/market.js", "/automation.js", "/account.js", "/trader.js", "/trader.css", "/evaluation.js", "/evaluation.css", "/paper.js", "/styles.css"}:
             file_name = route[1:]
             mime = "text/javascript; charset=utf-8" if file_name.endswith(".js") else "text/css; charset=utf-8"
             try:
@@ -322,6 +333,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.error(404, "Not found.")
 
     def api_get(self, route: str, query: dict[str, list[str]]) -> None:
+        if route == '/api/alerts':
+            self.json_response(200, ALERTS.status()); return
+        if route == '/api/service-health':
+            selected = AUTO_SELECTOR.status()
+            sources = NEWS_AGENT.status(getattr(MARKET, 'master', [])).get('sources', [])
+            self.json_response(200, dict(service='tradelab-local',
+                selection={key:selected.get(key) for key in ('state','enabled')},
+                sources=[{key:row.get(key) for key in ('source','status','stale')} for row in sources])); return
         if route == '/api/auto-selection':
             try:
                 self.json_response(200, automatic_selection_status())
@@ -450,6 +469,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             try:
                 action=route.rsplit('/',1)[-1]
                 if action == 'control':
+                    if values.get('action') == 'resume_entries' and (
+                        not AUTO_SELECTOR.enabled or self.connected_token(session) != AUTO_SELECTOR.token
+                        or (session.get('profile') or {}).get('user_id') != AUTO_SELECTOR.profile
+                    ):
+                        raise PermissionError('Reconnect the owning broker session before resuming entries.')
                     result=AUTO_SELECTOR.control(values.get('action'))
                 elif action == 'stop':
                     result=AUTO_SELECTOR.control('end_session')
@@ -460,14 +484,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     if config.get('strategy')!='intraday-v1' or config.get('source')!='imported':
                         raise ValueError('Choose an imported Intraday v1 account as the assumptions template.')
                     calendar=values.get('calendar')
-                    if values.get('permitted') is not True:
-                        raise ValueError('Confirm local data use permission.')
                     if action == 'preview':
+                        if values.get('permitted') is not True:
+                            raise ValueError('Confirm local data use permission.')
                         ranked,excluded=rank_candidates(values.get('candles',{}),config,calendar,values.get('asOf'))
                         result=dict(candidates=ranked,excluded=excluded,mode='offline-preview',live=False)
                     else:
                         if os.environ.get('KITE_DATA_STORAGE_APPROVED','false').lower()!='true':
                             raise ValueError('Provider retention approval required.')
+                        if calendar is None:
+                            calendar=automatic_selection_status()['calendar']
+                        elif values.get('permitted') is not True:
+                            raise ValueError('Confirm the supplied custom calendar or use the reviewed calendar.')
                         self.connected_token(session)
                         if PAPER_WORKER.status().get('enabled'):
                             raise ValueError('Stop the fixed-symbol worker first.')
@@ -480,8 +508,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception:
                 self.error(503,'Automatic selection unavailable. Review its state before retrying.')
             return
-        if route == '/api/operations/backup':
-            try: self.json_response(200, OPERATIONS.backup())
+        if route == '/api/alerts/acknowledge':
+            try:
+                ALERTS.acknowledge(values.get('id'))
+                self.json_response(200, ALERTS.status())
+            except ValueError as exc: self.error(400, str(exc))
+            return
+        if route in ('/api/operations/backup','/api/operations/restore-drill'):
+            try: self.json_response(200, OPERATIONS.backup() if route.endswith('/backup') else OPERATIONS.restore_drill())
             except Exception: self.error(503, 'Private storage backup failed; review operations health.')
             return
         if route.startswith('/api/strategy-lab/'):
@@ -665,8 +699,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if route == "/api/connect":
             self.begin_kite_login(session)
         elif route == "/api/disconnect":
-            if AUTO_SELECTOR.session is session:
-                AUTO_SELECTOR.stop()
+            if AUTO_SELECTOR.enabled:
+                # Explicit disconnect revokes the standing local paper grant
+                # even if the browser that originally started it has expired.
+                AUTO_SELECTOR.revoke()
             PAPER_WORKER.stop_owner(session_id)
             MARKET.stop_stream(session_id)
             MARKET.cancel_owner(session_id)
@@ -784,6 +820,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if payload.get("status") != "success" or not payload.get("data", {}).get("access_token"):
                 raise KiteError("Kite Connect did not return an access token.")
             profile = payload["data"]
+            if AUTO_SELECTOR.enabled and AUTO_SELECTOR.profile != profile.get("user_id"):
+                AUTO_SELECTOR.revoke()
             with LOCK:
                 session["access_token"] = profile["access_token"]
                 session["profile"] = {key: profile.get(key) for key in ("user_id", "user_name", "user_shortname", "email", "broker", "login_time")}
@@ -889,6 +927,19 @@ def serve() -> None:
     try:
         NEWS_AGENT.start()
         DESK.start()
+        def ensure_watcher():
+            if (ALERTS.status().get('watcherExpires') or 0) > time.time():
+                return
+            try:
+                subprocess.Popen([sys.executable, str(ROOT / 'scripts/watch_service.py'),
+                    '--url', f'http://127.0.0.1:{port}/api/service-health', '--database', str(ALERTS.path)],
+                    cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+                ALERTS.observe('watcher:startup', 'Independent service watcher could not start.', False)
+            except OSError:
+                ALERTS.observe('watcher:startup', 'Independent service watcher could not start.', True)
+        OPERATIONS.ensure_watcher = ensure_watcher
+        OPERATIONS.start()
         server.serve_forever()
     except KeyboardInterrupt:
         pass
@@ -896,6 +947,7 @@ def serve() -> None:
         AUTO_SELECTOR.stop()
         DESK.stop()
         NEWS_AGENT.stop()
+        OPERATIONS.stop()
         server.server_close()
 
 

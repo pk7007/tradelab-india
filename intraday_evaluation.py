@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from paper import PaperEngine
+from strategy_contract import VERSION as SIGNAL_CONTRACT
 
 
 def evaluate_intraday(request):
@@ -36,7 +37,8 @@ def evaluate_intraday(request):
         peak = equity[0]; drawdown = 0
         for value in equity:
             peak = max(peak,value);drawdown = max(drawdown,1-value/peak)
-        return dict(protocol='intraday-v1',fingerprint=fingerprint,source=config.get('source'),
+        return dict(protocol='intraday-v1',signalContract=SIGNAL_CONTRACT,
+                    fingerprint=fingerprint,source=config.get('source'),
                     implementationVersion='intraday-v1-calendar-aware-20261120',implementationHashes=implementation_hashes,
                     calendarFingerprint=hashlib.sha256(json.dumps(calendar,sort_keys=True,allow_nan=False).encode()).hexdigest() if calendar is not None else None,
                     finalEquity=state['equity'],returnPct=100*(state['equity']/capital-1),

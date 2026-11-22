@@ -25,10 +25,23 @@ def validate(data):
     return result
 
 
-def advance(s, bar):
+def entry_size(s, price, volume):
+    """Shared pre-entry and fill-time whole-share risk calculation."""
+    c=s['config']
+    stop=price*(1-c['stopDistancePct']/100)
+    buy,buy_fee=assumed_fill(price,1,'BUY',c['costBps'],c['slippageBps'])
+    sell,sell_fee=assumed_fill(stop,1,'SELL',c['costBps'],c['slippageBps'])
+    opening_equity=s['cash']+s['quantity']*price
+    remaining=max(0,c['dailyLossLimit']-max(0,s['dayStartEquity']-opening_equity))
+    return max(0,math.floor(min(c['units'],s['cash']/(buy+buy_fee),c['maxExposure']/(buy+buy_fee),
+                  min(c['maxLoss'],remaining)/(buy+buy_fee-sell+sell_fee),volume*c['participationPct']/100)))
+
+
+def advance(s, bar, entry_gate=None):
     """Update one accepted completed candle; return journal events for same transaction."""
     c = s['config']; day = bar['date'][:10]; clock = bar['date'][11:16]
     events = []
+    entry_review_id=None
     def event(kind, **extra): events.append(dict(type=kind, bar=bar['date'], **extra))
     if day != s['day']:
         if s['quantity']:
@@ -55,7 +68,10 @@ def advance(s, bar):
             s['realized'] += units*price-fee-basis; s['quantity'] -= units
             if not s['quantity']: s['completedTrades'] += 1
         used += units; s['fees'] += fee
-        event('fill', side=side, quantity=units, price=price, fee=fee, signalAt=s.get('pending',{}).get('signalAt') if s.get('pending') else s['lastBar'], reason=reason)
+        if side=='BUY' and entry_review_id:
+            s['lastEntryReviewId']=entry_review_id
+        event('fill', side=side, quantity=units, price=price, fee=fee, signalAt=s.get('pending',{}).get('signalAt') if s.get('pending') else s['lastBar'],
+              reason=reason,reviewId=entry_review_id if side=='BUY' else s.get('lastEntryReviewId'))
         event('order', side=side, state='FILLED' if units==requested else 'PARTIAL', quantity=requested, filled=units, reason=reason)
         return units
     opening_equity = s['cash']+s['quantity']*bar['open']
@@ -67,14 +83,17 @@ def advance(s, bar):
         fill('SELL',s['quantity'],bar['open'],pending.get('reason','Completed-bar exit'))
         if s['quantity']: s['pending'] = pending
     elif pending and pending['side']=='BUY':
-        if s.get('entriesPaused') or s['riskHalted'] or clock >= c['entryEnd'] or s['quantity']:
+        review=entry_gate('consume',s,bar,pending) if entry_gate else dict(status='eligible',maxQuantity=c['units'])
+        if review['status']=='waiting':
+            s['pending']=pending
+        elif review['status']!='eligible':
+            event('rejected',side='BUY',reason=review['reason'],reviewId=pending.get('reviewId'))
+        elif s.get('entriesPaused') or s['riskHalted'] or clock >= c['entryEnd'] or s['quantity']:
             event('rejected',side='BUY',reason='Entry paused, risk halted, entry window ended, or shares already held')
         else:
+            entry_review_id=pending.get('reviewId')
             stop = bar['open']*(1-c['stopDistancePct']/100)
-            buy, buy_fee = assumed_fill(bar['open'],1,'BUY',c['costBps'],c['slippageBps'])
-            sell, sell_fee = assumed_fill(stop,1,'SELL',c['costBps'],c['slippageBps'])
-            remaining = max(0,c['dailyLossLimit']-max(0,s['dayStartEquity']-opening_equity))
-            units = math.floor(min(c['units'],s['cash']/(buy+buy_fee),c['maxExposure']/(buy+buy_fee),min(c['maxLoss'],remaining)/(buy+buy_fee-sell+sell_fee)))
+            units=min(entry_size(s,bar['open'],math.inf),review['maxQuantity'])
             if units < 1: event('rejected',side='BUY',reason='No whole share fits capital, costs and planned risk')
             else:
                 filled=fill('BUY',units,bar['open'],'SMA completed-close entry; unfilled remainder cancelled')
@@ -103,5 +122,13 @@ def advance(s, bar):
     if not s.get('pending') and clock < c['entryEnd'] and len(s['closes'])==20:
         long=target_long(s['closes'])
         side='SELL' if not long and s['quantity'] else 'BUY' if long and not s['quantity'] and not s['riskHalted'] and not s.get('entriesPaused') else None
-        if side: s['pending']=dict(side=side,signalAt=bar['date'])
+        if side:
+            proposed=dict(side=side,signalAt=bar['date'])
+            if side=='BUY' and entry_gate:
+                reviewed=entry_gate('create',s,bar,proposed)
+                if reviewed['status']=='eligible':
+                    proposed['reviewId']=reviewed['reviewId']
+                    s['pending']=proposed
+            else:
+                s['pending']=proposed
     return events

@@ -27,4 +27,7 @@ class DeskTests(unittest.TestCase):
             self.assertEqual(len(first['tasks']), 3)
             agents.run_once()
             self.assertEqual(agents.status()['queue'].get('review'), 1)
+            desk.tick()
+            self.assertEqual(agents.status()['queue'].get('desk-reviewed'), 1)
+            self.assertIsNone(agents.status()['queue'].get('accepted'))
             agents.stop()

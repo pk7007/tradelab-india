@@ -72,3 +72,14 @@ automatic selection implement a subset. Consult docs/agent-integration-requireme
 Code review scores cannot authorize broker orders, strategy promotion, changed
 loss limits or automatic changes to a running strategy. Use existing authorization
 and operational controls.
+
+## Automatic small-change commits
+
+The owner requests automatic local commits during active coding sessions.
+Follow docs/commit-workflow.md after each small coherent completed code change.
+Reuse one independent commit_guard subagent with .agents/commit-guard.md as its
+role brief. Complete suitable checks and review, stage explicit safe paths, then
+commit without asking again. Defer normal automatic commits if checks fail;
+explicitly requested checkpoints must describe pending checks honestly.
+Do not include unrelated user work, secrets, private ledgers or licensed data.
+Push only when authorized. This instruction does not create a permanent watcher.

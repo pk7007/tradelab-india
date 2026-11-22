@@ -19,6 +19,8 @@ from unittest.mock import Mock, patch
 
 import test_auto_selector
 from intraday_session import session_snapshot
+from operational_alerts import OperationalAlerts
+from operations import Operations
 
 
 class IntradayHTTPTests(unittest.TestCase):
@@ -28,6 +30,9 @@ class IntradayHTTPTests(unittest.TestCase):
         self.addCleanup(fixture.doCleanups)
         self.fixture = fixture
         self.template = fixture.engine.create(fixture.config)['id']
+        alerts = OperationalAlerts(fixture.engine.path.parent / 'alerts.sqlite')
+        operations = Operations([fixture.engine.path, alerts.path], fixture.engine.path.parent,
+                                paper_engine=fixture.engine, alerts=alerts)
         root = Path(__file__).resolve().parents[1]
         tree = ast.parse((root / 'app.py').read_text())
         self.broker_order = Mock(side_effect=AssertionError('Paper must never submit broker orders'))
@@ -37,11 +42,12 @@ class IntradayHTTPTests(unittest.TestCase):
             urllib=SimpleNamespace(parse=urllib.parse), ROOT=root, WEB=root/'web',
             SESSIONS={'fixture':dict(fixture.session, csrf='fixture-csrf')},
             LOCK=threading.RLock(), SESSION_IDLE_SECONDS=1800, MAX_SESSIONS=128,
-            AUTO_SELECTOR=fixture.selector, PAPER=fixture.engine,
+            AUTO_SELECTOR=fixture.selector, PAPER=fixture.engine, ALERTS=alerts, OPERATIONS=operations,
             PAPER_WORKER=SimpleNamespace(status=lambda:dict(enabled=False)),
             PORTAL=SimpleNamespace(status=lambda:dict(settings=fixture.config)),
             NEWS_AGENT=SimpleNamespace(status=lambda *args:dict(status='fixture',stale=False,sources=[])),
             MARKET=fixture.market, DESK=SimpleNamespace(status=lambda:dict(state='fixture')),
+            AGENTS=SimpleNamespace(status=lambda:dict(state='fixture')),
             session_snapshot=session_snapshot, TOOLS={}, kite_request=self.broker_order)
         names = {'Handler', 'automatic_selection_status'}
         exec(compile(ast.Module(body=[n for n in tree.body
@@ -150,4 +156,25 @@ class IntradayHTTPTests(unittest.TestCase):
         self.assertEqual(result['report']['totalPnl'], 0)
         self.assertFalse(result['readiness']['canRequestStart'])
         self.assertEqual(len(self.fixture.engine.status()['accounts']), 1)
+        self.broker_order.assert_not_called()
+
+    def test_scheduled_start_uses_saved_permissions_and_reviewed_calendar(self):
+        f = self.fixture
+        # The local supervisor uses the same authenticated Start route as the
+        # browser. Simulate its two deliveries without starting a real clock.
+        self.namespace['automatic_selection_status'] = lambda: dict(f.selector.status(), calendar=f.calendar)
+        payload = dict(templateAccount=self.template)
+        with patch.dict(os.environ, KITE_DATA_STORAGE_APPROVED='false'):
+            self.assertEqual(self.request('/api/auto-selection/start', payload)[0], 400)
+        with patch.dict(os.environ, KITE_DATA_STORAGE_APPROVED='true'), patch(
+                'auto_selector.threading', SimpleNamespace(Thread=Mock())):
+            for _ in range(2):
+                self.assertEqual(self.request('/api/auto-selection/start', payload)[0], 200)
+        f.selector.tick()
+        f.selector.tick()
+        f.advance(15)
+        report = self.request('/api/intraday-session')[1]['report']
+        self.assertEqual(report['fillCount'], 1)
+        self.assertTrue(report['quantity'] > 0)
+        self.assertEqual(len(f.engine.status()['accounts']), 2)
         self.broker_order.assert_not_called()

@@ -22,6 +22,7 @@ class SessionEvidence:
                     input_hash TEXT NOT NULL, attempt INTEGER NOT NULL,
                     body TEXT NOT NULL, PRIMARY KEY(input_hash, attempt)
                 );
+                CREATE INDEX IF NOT EXISTS session_evidence_account_domain ON session_evidence_runs(account,domain);
             ''')
 
     def observe(self, selection):
@@ -124,6 +125,23 @@ class SessionEvidence:
                realized=account['realized'], fees=account['fees'])
         checks['performance-attribution'] = dict(totalPnl=account['equity'] - config['capital'],
                                                  cash=account['cash'], equity=account['equity'])
+        news = next((event for event in reversed(events) if event['type'] == 'worker-news-context'), None)
+        if news:
+            references = news.get('detail', {}).get('evidence', [])
+            for reference in references[:100]:
+                if reference.get('symbol') != symbol:
+                    continue
+                record('event-entity-mapping', reference['inputHash'], symbol=symbol,
+                       entity='NSE:' + symbol, eventType='Advisory event reference')
+                records['event-entity-mapping'][-1].update(
+                    observedAt=reference['publishedAt'], availableAt=reference['availableAt'],
+                    source='local:news-reference:' + reference['source'])
+            if references:
+                checks['event-entity-mapping'] = dict(
+                    metadataOnly=True, parentTask='paper-worker-news-context',
+                    sourceEventSequence=news['seq'], accountId=identity,
+                    sourceInputHashes=[row['inputHash'] for row in references[:100]],
+                    claim='Recomputed symbol linkage of attached references; event content and trading value unverified.')
         if candle:
             candle_record = dict(candle)
             for field in ('date', 'halted', 'reject'):
@@ -135,6 +153,11 @@ class SessionEvidence:
                 completedAt=(timestamp(candle['date']) + dt.timedelta(minutes=5)).isoformat(),
                 receiptRecorded=received is not None)
         fills = [event for event in events if event['type'] == 'fill']
+        approvals = {event['reviewId']: event for event in events if event['type']=='entry-review'}
+        parent_reviews = sorted({fill['reviewId'] for fill in fills if fill.get('reviewId') in approvals})
+        checks['paper-execution'] = dict(parentEntryReviews=parent_reviews,
+            parentTaskIds=[approvals[identity].get('handoffs',{}).get('finalTaskId') for identity in parent_reviews],
+            accountId=identity, ledgerMatches=reconciliation['matches'])
         cash = config['capital']
         for fill in fills[:-1000]:
             value = fill['quantity'] * fill['price']
@@ -191,5 +214,5 @@ class SessionEvidence:
                     rolesRun=sorted({role for task in tasks for role in task['roles']}),
                     executionAllowed=False,
                     reviewScope='Deterministic re-computation of descriptive evidence; no strategy approval or quality score.',
-                    missingStages=['News-to-signal validation', 'Pre-entry agent approval',
+                    missingStages=['News-to-signal validation',
                                    'Forward-market acceptance', 'Independent strategy profitability validation'])

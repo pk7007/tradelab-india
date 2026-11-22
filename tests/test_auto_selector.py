@@ -15,7 +15,7 @@ from test_intraday_paper import CONFIG, bars
 
 class SelectionTests(unittest.TestCase):
     def setUp(self):
-        self.sleep=patch('auto_selector.time.sleep')
+        self.sleep=patch('auto_selector.time', SimpleNamespace(**dict(vars(time), sleep=lambda *_: None)))
         self.sleep.start()
         self.addCleanup(self.sleep.stop)
         self.temp=tempfile.TemporaryDirectory()
@@ -107,6 +107,103 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(self.engine.create(self.config,identity='stable')['id'],first['id'])
         with self.assertRaises(ValueError):
             self.engine.create(dict(self.config,capital=999),identity='stable')
+
+    def test_standing_grant_and_persistent_preselection_pause(self):
+        self.start()
+        with self.assertRaises(PermissionError):
+            self.selector.start(dict(self.session, access_token='another-user'), self.config, self.calendar)
+        self.session['last_seen'] -= 2000
+        self.selector.check_login()
+        self.selector.control('pause_entries')
+        self.selector.stop()
+        self.selector=AutoSelector(self.engine,self.market,clock=lambda:self.now)
+        self.session['last_seen']=time.monotonic()
+        self.start()
+        self.selector.tick()
+        self.assertEqual(self.selector.status()['state'],'entries-paused')
+        self.assertIsNone(self.selector.worker.account)
+        self.selector.control('resume_entries')
+        self.selector.tick()
+        self.assertIsNotNone(self.selector.worker.account)
+        self.selector.stop()
+        with self.assertRaises(PermissionError):
+            self.selector.check_login()
+
+    def test_invalid_entry_reviewer_cannot_roll_back_protective_exit(self):
+        self.start()
+        self.selector.tick()
+        self.selector.tick()
+        self.advance(10)
+        identity=self.selector.worker.account
+        self.assertGreater(self.engine.reconcile(identity)['quantity'],0)
+        # This bar crosses the stop but closes back on trend, triggering a
+        # fresh entry review in the same transaction as the protective SELL.
+        self.rows[23]=dict(self.rows[23],low=90)
+        from types import SimpleNamespace
+        self.engine.entry_reviewer=SimpleNamespace(review=lambda _:dict(
+            status='eligible',maxQuantity=1,reason=object(),reviewers=[]))
+        self.advance(5)
+        with self.engine.db() as db:
+            account=self.engine.load(db,identity)
+            self.assertEqual(account['quantity'],0)
+            self.assertIsNone(account['pending'])
+            rejected=db.execute("SELECT body FROM entry_reviews WHERE state='rejected' AND account=?",
+                                (identity,)).fetchall()
+            self.assertTrue(any('temporarily-blocked' in row[0] for row in rejected))
+        self.assertTrue(self.engine.reconcile(identity)['matches'])
+
+    def test_crash_after_consumption_rolls_back_approval_and_fill_together(self):
+        self.start()
+        self.selector.tick()
+        self.selector.tick()
+        self.advance(5)
+        identity=self.selector.worker.account
+        # Keep the worker lease alive up to the next completed bar.
+        self.advance(4)
+        self.now+=dt.timedelta(minutes=1)
+        save=self.engine.save
+        def interrupted(db,state,event):
+            if event['type']=='fill':
+                raise RuntimeError('fixture process interruption before commit')
+            return save(db,state,event)
+        with patch.object(self.engine,'save',side_effect=interrupted):
+            with self.assertRaises(RuntimeError):
+                self.selector.tick()
+        with self.engine.db() as db:
+            self.assertEqual(self.engine.load(db,identity)['quantity'],0)
+            self.assertEqual(db.execute('SELECT state FROM entry_reviews WHERE account=?',(identity,)).fetchone()[0],'eligible')
+        self.selector.tick()
+        self.selector.tick()
+        self.assertEqual(self.engine.reconcile(identity)['fills'],1)
+
+    def test_review_timeout_blocks_buy_and_leaves_session_running(self):
+        from entry_review import EntryReviewer
+        release=threading.Event()
+        self.addCleanup(release.set)
+        self.engine.entry_reviewer=EntryReviewer(lambda evidence:release.wait(2),timeout=.01)
+        self.start()
+        self.selector.tick()
+        self.selector.tick()
+        self.advance(10)
+        with self.engine.db() as db:
+            account=self.engine.load(db,self.selector.worker.account)
+            self.assertIsNone(account['pending'])
+            self.assertEqual(account['quantity'],0)
+            self.assertTrue(db.execute("SELECT 1 FROM entry_reviews WHERE state='rejected'").fetchone())
+        self.assertTrue(self.selector.enabled)
+
+    def test_expired_review_cannot_buy_even_if_price_still_qualifies(self):
+        self.start()
+        self.selector.tick()
+        self.selector.tick()
+        self.advance(5)
+        with self.engine.db() as db:
+            db.execute("UPDATE entry_reviews SET body=json_set(body,'$.expiresAt',?) WHERE state='eligible'",
+                       (self.now.isoformat(),))
+        self.advance(5)
+        with self.engine.db() as db:
+            self.assertTrue(db.execute("SELECT 1 FROM entry_reviews WHERE state='invalidated'").fetchone())
+        self.assertEqual(self.engine.reconcile(self.selector.worker.account)['fills'],0)
 
     def test_recover_reserved_account_after_creation_failure(self):
         self.start()

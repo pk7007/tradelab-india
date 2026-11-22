@@ -12,7 +12,7 @@ import time
 import uuid
 
 from agent_catalog import VERSION, registry
-from agent_handlers import LEGACY, supported
+from agent_handlers import LEGACY, supported, execute
 
 HANDLERS = LEGACY
 STATES = ('candidate', 'shadow', 'active', 'probation', 'quarantined', 'retired')
@@ -62,6 +62,29 @@ class AgentService:
     def _audit(db, event, identity, body):
         db.execute('INSERT INTO agent_audit(at,event,identity,body) VALUES(?,?,?,?)',
                    (time.time(), event, identity, json.dumps(body, allow_nan=False)))
+
+    def review_desk_observations(self):
+        """Check completed local health reports without granting trading or promotion authority."""
+        with self.db() as db:
+            rows = db.execute("""SELECT id,body,output FROM tasks
+                WHERE capability='operations-security.monitoring' AND state='review'
+                AND key GLOB 'desk-v1-[0-9]*' ORDER BY created LIMIT 24""").fetchall()
+            for row in rows:
+                envelope = json.loads(row['body'])
+                records = envelope['input'].get('records', [])
+                if len(records) != 1 or records[0].get('source') != 'local:desk-observation':
+                    continue
+                try:
+                    expected = execute('operations-security.monitoring', envelope)
+                    matches = expected == json.loads(row['output'])
+                except (ValueError, KeyError, TypeError):
+                    matches = False
+                verdict = dict(reviewer='service:desk-observation-review-v1',
+                               reproducible=matches, executionAllowed=False)
+                db.execute('UPDATE tasks SET state=?,verdict=? WHERE id=? AND state=?',
+                           ('desk-reviewed' if matches else 'rejected', json.dumps(verdict),
+                            row['id'], 'review'))
+                self._audit(db, 'desk-review', row['id'], verdict)
 
     def enqueue(self, values):
         capability = values.get('capability')

@@ -1,5 +1,12 @@
 # Indian-market news agent
 
+The main application uses a shared RSS and optional licensed-news service for
+its source API, research, paper workers and desk monitoring. See the
+[current integration and provisioning guide](integration-2026-11-22.md). App RSS
+checks run on a 30-second interval, and an enabled provisioned licensed source
+uses a 60-second interval. The CLI defaults described below apply to the
+standalone reader.
+
 `news_agent.py` is a local personal RSS reader for Indian stocks and indices. It can run independently and is also connected to the dashboard through /api/news-agent and requires no new packages, broker login or model key. By default it reads the existing official NSE announcements feed, ET's stocks RSS feed and the supplied Google News search for `RELIANCE stock OR NSE` (English, India). Polling defaults to five minutes; publisher delays and rolling-feed gaps mean this is not a guaranteed real-time or complete news service.
 
 From the repository root:

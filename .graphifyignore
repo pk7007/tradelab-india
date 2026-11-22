@@ -1,0 +1,12 @@
+.tools/
+.git/
+.venv/
+.agents/
+.codex/
+.env*
+data/
+graphify-out/
+*.sqlite*
+*.log
+*.pem
+*.key

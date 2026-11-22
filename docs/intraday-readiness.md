@@ -1,5 +1,11 @@
 # Intraday readiness increment — 19 November 2026
 
+This is a historical implementation record. Use
+[current intraday automation](intraday-automation.md) for the automatic feed,
+session controls and current acceptance steps, and the saved account profile
+for its actual limits. The original figures and manual-ingestion workflow below
+describe the 19 November release.
+
 ## Outcome and boundaries
 
 An opt-in `intraday-v1` paper model adds risk-sized entries, modeled protective stops, partial exits and session square-off. Existing account configuration and history are preserved; the legacy SMA model is unchanged. This is imported-candle simulation, not unattended real-money execution or evidence of profit. The user’s ₹1,000 capital, ₹25 planned trade loss and ₹100 daily threshold remain the approved financial settings; stop distance, target multiple, participation and session times require explicit research inputs. These choices have not been approved for live deployment.

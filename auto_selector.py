@@ -13,7 +13,7 @@ from market_contract import session_for
 from market_data import clean_candles
 from paper_worker import PaperWorker
 from research import IST, timestamp, validate_rows
-from research_context import attach_announcements
+from research_context import attach_announcements, evidence_references
 from strategy_contract import target_long
 from trader_suite import plan
 
@@ -75,7 +75,7 @@ class AutoSelector:
         self.profile = None
         self.enabled = False
         self.desired = 'stopped'
-        self.worker = PaperWorker(engine, self.fetch, clock=clock)
+        self.worker = PaperWorker(engine, self.fetch, clock=clock, entry_authorized=self.check_login)
         self.detail = dict(state='disarmed', candidates=[], excluded=[], live=False)
         with engine.db() as db:
             db.execute('CREATE TABLE IF NOT EXISTS auto_selection (day TEXT PRIMARY KEY, account TEXT UNIQUE NOT NULL, body TEXT NOT NULL)')
@@ -95,9 +95,9 @@ class AutoSelector:
         return result
 
     def check_login(self):
-        if (not self.session or self.session.get('access_token') != self.token
-                or (self.session.get('profile') or {}).get('user_id') != self.profile
-                or time.monotonic()-self.session.get('last_seen',0)>1800):
+        # The authorized paper worker owns a market-data grant for this session
+        # date. Browser idle expiry only revokes the browser's credentials.
+        if not self.token or not self.profile or self.clock().date() != self.grant_day:
             raise PermissionError('Reconnect Zerodha to resume automatic paper selection.')
 
     def fetch(self, instrument, start, end):
@@ -120,7 +120,7 @@ class AutoSelector:
                 feed=self.announcements.status(getattr(self.market,'master',[]))
                 values,summary=attach_announcements(dict(asOf=cutoff),feed)
                 matching=[r for r in values['records'] if instrument['symbol'] in r['symbols']]
-                context.update(summary,attached=len(matching),
+                context.update(summary,attached=len(matching), evidence=evidence_references(matching, instrument['symbol']),
                                status='matched' if matching else 'unavailable' if summary['stale'] else 'no-eligible-match')
             self.detail['newsContext']=context
             if self.worker.account and self.detail.get('symbol')==instrument['symbol']:
@@ -135,6 +135,9 @@ class AutoSelector:
     def start(self, session, config, calendar):
         with self.lock:
             if self.enabled:
+                if (session.get('access_token') != self.token or
+                        (session.get('profile') or {}).get('user_id') != self.profile):
+                    raise PermissionError('A different broker session owns this paper run.')
                 return self.status()
             if self.thread and self.thread.is_alive():
                 raise ValueError('Previous selection cycle is stopping; wait before restarting.')
@@ -201,17 +204,17 @@ class AutoSelector:
             self.session=session
             self.token=session.get('access_token')
             self.profile=(session.get('profile') or {}).get('user_id')
+            self.grant_day=now.date()
             self.check_login()
             self.config=copy.deepcopy(config)
             self.calendar=copy.deepcopy(calendar)
-            if not saved:
-                self.start_unfunded_session(now)
+            paused_before_selection = self.start_unfunded_session(now) if not saved else False
             self.recovery_only=recovering and (previous_session or now.strftime('%H:%M')>=config['entryEnd'])
             self.recovery_allocation=(recovery_identity,allocation) if saved else None
-            self.worker=PaperWorker(self.engine,self.fetch,clock=self.clock)
+            self.worker=PaperWorker(self.engine,self.fetch,clock=self.clock,entry_authorized=self.check_login)
             self.enabled=True
             self.shutdown.clear()
-            self.desired='running'
+            self.desired='paused' if paused_before_selection else 'running'
             self.detail=dict(state='waiting-for-scan',candidates=[],excluded=[],live=False)
             if self.recovery_allocation:
                 identity,allocation=self.recovery_allocation
@@ -242,7 +245,7 @@ class AutoSelector:
                     raise ValueError('Saved session profile or assumptions changed.')
                 if recorded['final']:
                     raise ValueError('This paper session already ended. Its closing report is preserved.')
-                return
+                return bool(recorded.get('entriesPaused'))
             opening_cash=self.config['capital']
             previous=db.execute('SELECT account,body FROM auto_selection WHERE day<? ORDER BY day DESC LIMIT 1',(day,)).fetchone()
             if previous:
@@ -273,9 +276,21 @@ class AutoSelector:
         with self.lock:
             self.enabled=False
             self.shutdown.set()
+            self.token=None
+            self.session=None
             self.worker.stop()
             self.detail['state']='stopped'
             return self.status()
+
+    def revoke(self):
+        """Remove the market-data grant and cancel unfilled entries on explicit logout."""
+        with self.lock:
+            self.token=None
+            if self.enabled:
+                try:
+                    self.control('pause_entries')
+                finally:
+                    self.stop()
 
     def control(self, action):
         """Session controls never abandon an active exit to pause new entries."""
@@ -293,6 +308,13 @@ class AutoSelector:
                     self.detail.update(state='reconciled-flat',reason='Session ended before a stock was selected.')
                 else:
                     self.desired='paused' if action=='pause_entries' else 'running'
+                    day=self.clock().date().isoformat()
+                    with self.engine.db() as db:
+                        row=db.execute('SELECT body FROM auto_sessions WHERE day=?',(day,)).fetchone()
+                        if row:
+                            recorded=json.loads(row[0])
+                            recorded['entriesPaused']=self.desired=='paused'
+                            db.execute('UPDATE auto_sessions SET body=? WHERE day=?',(json.dumps(recorded),day))
                     self.detail['state']='entries-paused' if action=='pause_entries' else 'waiting-for-scan'
                 return self.status()
             state=self.engine.control(identity,action,requested_at=self.clock().isoformat())
@@ -327,9 +349,15 @@ class AutoSelector:
                     if self.shutdown.is_set():
                         return
                     self.enabled=False
-                    self.worker.stop()
+                    self.token=None
+                    self.session=None
                     self.detail.update(state='blocked',reason='BROKER_LOGIN_REQUIRED' if isinstance(exc,PermissionError)
                                        else 'Selection or data validation failed. Review before resuming.')
+                    try:
+                        if self.worker.account:
+                            self.engine.control(self.worker.account,'pause_entries')
+                    finally:
+                        self.worker.stop()
                 return
             self.shutdown.wait(30)
 
@@ -345,6 +373,9 @@ class AutoSelector:
         if self.worker.account:
             self.worker.tick()
             self.detail.update(state='paper-processing',worker=self.worker.status())
+            accepted=self.detail['worker'].get('lastAcceptedBar')
+            if accepted and timestamp(accepted).astimezone(IST).date()==now.date() and timestamp(accepted).astimezone(IST).strftime('%H:%M')>=self.config['squareOff'] and self.desired!='ending':
+                self.control('end_session')
             if self.finish_if_flat():
                 return
             if now >= timestamp(session['end']):
@@ -433,6 +464,8 @@ class AutoSelector:
             return self._allocate(day,instrument)
 
     def _allocate(self, day, instrument):
+        if self.desired=='paused':
+            return
         if not self.enabled or self.shutdown.is_set():
             raise ValueError('Selection stopped before allocation.')
         if self.desired != 'running':

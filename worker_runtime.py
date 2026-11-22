@@ -4,14 +4,14 @@ import threading
 import time
 from market_data import clean_candles
 from paper_worker import PaperWorker
-from research_context import attach_announcements
+from research_context import attach_announcements, evidence_references
 
 
 class WorkerRuntime:
     def __init__(self,engine,market,announcements=None):
         self.engine=engine;self.market=market;self.announcements=announcements;self.lock=threading.RLock()
         self.session=None;self.session_id=None;self.token=None;self.profile_id=None
-        self.worker=PaperWorker(engine,self.fetch)
+        self.worker=PaperWorker(engine,self.fetch,entry_authorized=self.valid_session)
         self.thread=None;self.wake=threading.Event()
         self.runtime_fault=None
 
@@ -48,7 +48,7 @@ class WorkerRuntime:
                 context['checkedAt']=cutoff
                 values,summary=attach_announcements(dict(asOf=cutoff),feed)
                 matching=[r for r in values['records'] if instrument['symbol'] in r['symbols']]
-                context.update(summary,attached=len(matching),status='matched' if matching else ('unavailable' if summary['stale'] else 'no-eligible-match'))
+                context.update(summary,attached=len(matching),evidence=evidence_references(matching, instrument['symbol']),status='matched' if matching else ('unavailable' if summary['stale'] else 'no-eligible-match'))
         except Exception:
             context['status']='unavailable'
         with self.engine.db() as db:

@@ -48,11 +48,12 @@ class SyndicationCache:
         with self.db() as db:
             db.executescript('''CREATE TABLE IF NOT EXISTS mc_articles(id TEXT PRIMARY KEY,updated TEXT NOT NULL,body TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS mc_revisions(id TEXT PRIMARY KEY,status TEXT NOT NULL,event_at TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS mc_state(name TEXT PRIMARY KEY,value TEXT NOT NULL);''')
+            CREATE TABLE IF NOT EXISTS mc_state(name TEXT PRIMARY KEY,value TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS mc_articles_updated ON mc_articles(updated);''')
 
     @contextmanager
-    def db(self):
-        db=sqlite3.connect(self.path,timeout=10)
+    def db(self, timeout=10):
+        db=sqlite3.connect(self.path,timeout=timeout)
         try:
             db.execute('PRAGMA secure_delete=ON')
             db.execute('PRAGMA journal_mode=DELETE')
@@ -156,20 +157,24 @@ class SyndicationCache:
         clean.update(ingested_at=now.isoformat(),sentiment_score=None)
         db.execute('INSERT OR REPLACE INTO mc_articles VALUES(?,?,?)',(art,updated.isoformat(),json.dumps(clean,allow_nan=False)))
 
-    def expire_if_unobserved(self,now=None):
+    def expire_if_unobserved(self,now=None, *, timeout=10):
         now=now or self.clock()
-        with self.db() as db:
+        with self.db(timeout=timeout) as db:
             last=self.state(db,'revisions_success')
             if self.state(db,'revisions_pending')=='true' or not last or now-stamp(last)>=dt.timedelta(hours=6):
                 db.execute('DELETE FROM mc_articles')
                 return True
         return False
 
-    def articles(self):
+    def articles(self, *, timeout=10, limit=None):
+        if limit is not None and (type(limit) is not int or not 1 <= limit <= 1000):
+            raise ValueError('Article limit must be between one and one thousand.')
         with self.lock:
-            if self.expire_if_unobserved(): return []
-            with self.db() as db:
-                return [json.loads(r[0]) for r in db.execute('SELECT body FROM mc_articles ORDER BY updated DESC')]
+            if self.expire_if_unobserved(timeout=timeout): return []
+            with self.db(timeout=timeout) as db:
+                query = 'SELECT body FROM mc_articles ORDER BY updated DESC'
+                rows = db.execute(query + ' LIMIT ?', (limit,)) if limit is not None else db.execute(query)
+                return [json.loads(r[0]) for r in rows]
 
     def sync_once(self):
         # Fail closed: revisions must succeed before ingestion or delivery.

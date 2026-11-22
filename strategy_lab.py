@@ -423,4 +423,6 @@ class StrategyLab:
             history = [dict(seq=row['seq'], at=row['at'], **json.loads(row['body']))
                        for row in db.execute('SELECT * FROM lab_events ORDER BY seq DESC LIMIT 100')]
         return dict(hypotheses=hypotheses, revisions=revisions, evaluations=evaluations, history=history,
-                    mode='offline-paper-research', live=False, automaticPromotionReady=self.paper is not None)
+                    mode='offline-paper-research', live=False, paperEngineConnected=self.paper is not None,
+                    automaticPromotionReady=False,
+                    promotionBlocker='Candidate-specific executable quote paper observations and equity marks are not produced by the current candle workers.')

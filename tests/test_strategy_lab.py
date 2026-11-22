@@ -36,6 +36,15 @@ class StrategyLabTests(unittest.TestCase):
                                             corporateActions='synthetic none', universe='DEMO', benchmark='frozen SMA baseline'))
         self.hypothesis = self.lab.register(self.request)['id']
 
+    def test_connected_paper_engine_does_not_claim_automatic_promotion_readiness(self):
+        status = self.lab.status()
+        self.assertTrue(status['paperEngineConnected'])
+        self.assertFalse(status['automaticPromotionReady'])
+        self.assertIn('quote paper observations', status['promotionBlocker'])
+        disconnected = StrategyLab(Path(self.temp.name) / 'disconnected.sqlite').status()
+        self.assertFalse(disconnected['paperEngineConnected'])
+        self.assertFalse(disconnected['automaticPromotionReady'])
+
     def test_registration_is_persistent_and_immutable(self):
         before = self.lab.status()['hypotheses'][0]
         self.assertEqual(before, StrategyLab(self.lab.path).status()['hypotheses'][0])

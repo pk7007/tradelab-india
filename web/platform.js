@@ -37,15 +37,9 @@ const selectionStart = text('button', 'Start paper trading', 'primary');
 const selectionPause = text('button', 'Pause new entries');
 const selectionResume = text('button', 'Resume new entries');
 const selectionEnd = text('button', 'End session and reconcile');
-const selectionPermission = document.createElement('input');
-selectionPermission.type = 'checkbox';
-selectionPermission.id = 'selection-permission';
-const selectionLabel = text('label', 'I confirm permission for local price-data storage and the displayed session calendar.');
-selectionLabel.className = 'check';
-selectionLabel.prepend(selectionPermission);
 const selectionButtons = text('div', '', 'controls');
 selectionButtons.append(selectionStart, selectionPause, selectionResume, selectionEnd);
-selectionPanel.append(selectionState, selectionLabel, selectionButtons, selectionResults);
+selectionPanel.append(selectionState, selectionButtons, selectionResults);
 $('session-overview').append(selectionPanel);
 let selectionSnapshot = null, selectionRefreshing = false, selectionMutating = false, selectionVersion = 0;
 let sessionSnapshot = null;
@@ -53,6 +47,7 @@ let sessionSnapshot = null;
 function selectionStatusText(snapshot) {
   if (!snapshot) return 'Session health unavailable. Refresh before starting.';
   if (snapshot.closureState === 'unresolved-exposure') {
+    if (snapshot.quantity === 0 && snapshot.pending?.side === 'BUY') return 'Entry intent pending · No filled shares. ' + (snapshot.reason || 'The next accepted candle must pass entry checks.');
     if (!snapshot.enabled || snapshot.threadAlive === false || ['ending', 'blocked', 'stopped', 'expired'].includes(snapshot.state)) return 'Unresolved exposure. ' + (snapshot.reason || 'Protective processing and reconciliation remain required.');
     return 'Position open · ' + (snapshot.symbol || 'selected account') + ' · Protective processing remains active.';
   }
@@ -70,6 +65,35 @@ function setSelectionButtons() {
   selectionEnd.disabled = unavailable || !(selectionSnapshot?.enabled || selectionSnapshot?.accountId);
 }
 
+function renderEntryReview(parent, review) {
+  const panel = text('div', '', 'entry-decision');
+  panel.append(text('h3', 'Entry decision'));
+  if (!review) {
+    panel.append(text('p', 'Waiting for a completed signal and its entry checks.'));
+    parent.append(panel);
+    return;
+  }
+  const labels = {eligible: 'Eligible', skip: 'Skip', 'temporarily-blocked': 'Temporarily blocked'};
+  panel.append(text('strong', labels[review.status] || review.status));
+  panel.append(text('p', review.reason));
+  panel.append(text('p', 'Maximum whole shares · ' + review.maxQuantity));
+  const details = document.createElement('details');
+  details.append(text('summary', 'Entry reviewers and evidence'));
+  for (const reviewer of review.reviewers || []) {
+    details.append(text('p', reviewer.identity + ' · ' + reviewer.status + ' · ' + reviewer.reason));
+  }
+  if (review.handoffs) {
+    details.append(text('h4', 'Entry task handoffs · ' + review.handoffs.state));
+    for (const task of review.handoffs.tasks || []) {
+      details.append(text('p', task.domain.replaceAll('-', ' ') + ' · ' + task.state
+        + (task.reason ? ' · ' + task.reason : ' · independently checked')));
+    }
+  }
+  details.append(text('pre', JSON.stringify(review, null, 2)));
+  panel.append(details);
+  parent.append(panel);
+}
+
 async function refreshSelection() {
   if (document.hidden || selectionRefreshing) return;
   selectionRefreshing = true;
@@ -78,13 +102,20 @@ async function refreshSelection() {
     const snapshot = await api('/api/intraday-session?templateAccount=' + encodeURIComponent($('account').value));
     if (version !== selectionVersion) return;
     sessionSnapshot = snapshot;
-    selectionSnapshot = {...snapshot.selection, final: snapshot.report?.final, closureState: snapshot.report?.closureState};
+    renderBrokerConnection(snapshot.readiness.connected);
+    selectionSnapshot = {...snapshot.selection, final: snapshot.report?.final,
+      closureState: snapshot.report?.closureState, quantity: snapshot.report?.quantity,
+      pending: snapshot.report?.pending};
     selectionState.textContent = selectionStatusText(selectionSnapshot);
+    const expandedDetails = new Set([...selectionResults.querySelectorAll('details[open]')]
+      .map(detail => detail.querySelector('summary')?.textContent));
     selectionResults.replaceChildren();
     for (const notice of sessionSnapshot.attention || []) selectionResults.append(text('p', notice, 'notice'));
     const readiness = sessionSnapshot.readiness || {};
-    selectionResults.append(text('p', 'Broker ' + (readiness.connected ? 'connected' : 'login required') + ' · Local data storage ' + (readiness.storageApproved ? 'approved' : 'approval required')));
-    if (sessionSnapshot.news?.decisionEffect) selectionResults.append(text('p', sessionSnapshot.news.decisionEffect, 'muted'));
+    const sessionDetails = document.createElement('details');
+    sessionDetails.append(text('summary', 'Session setup and diagnostics'));
+    sessionDetails.append(text('p', 'Broker ' + (readiness.connected ? 'connected' : 'login required') + ' · Local data storage ' + (readiness.storageApproved ? 'approved' : 'approval required')));
+    if (sessionSnapshot.news?.decisionEffect) sessionDetails.append(text('p', sessionSnapshot.news.decisionEffect, 'muted'));
     const evidence = sessionSnapshot.agents?.sessionEvidence;
     if (evidence) {
       const roles = document.createElement('details');
@@ -98,12 +129,17 @@ async function refreshSelection() {
         roles.append(item);
       }
       for (const missing of evidence.missingStages || []) roles.append(text('p', 'Pending · ' + missing));
-      selectionResults.append(roles);
+      sessionDetails.append(roles);
     }
     const report = sessionSnapshot.report;
+    const latestEntryReview = report?.trace?.events?.findLast(event => event.type === 'entry-review');
+    if (latestEntryReview || selectionSnapshot.enabled) renderEntryReview(selectionResults, latestEntryReview);
     if (report) {
       const summary = text('div', '', 'closing-report');
-      summary.append(text('h3', report.final ? 'Closing report · reconciled and flat' : report.closureState === 'unresolved-exposure' ? 'Open position and account report' : 'Session report · in progress'));
+      const heading = report.final ? 'Closing report · reconciled and flat'
+        : report.quantity > 0 ? 'Open position and account report'
+        : report.pending ? 'Pending entry and account report' : 'Session report · in progress';
+      summary.append(text('h3', heading));
       summary.append(text('p', 'Net result ' + money(report.totalPnl) + ' · fees paid ' + money(report.fees) + ' · fills ' + report.fillCount + ' · completed trades ' + report.completedTrades));
       summary.append(text('p', 'Cash ' + money(report.cash) + ' · exposure ' + money(report.exposure) + ' · shares ' + report.quantity + ' · pending ' + (report.pending?.side || 'none')));
       const trace = document.createElement('details');
@@ -112,7 +148,9 @@ async function refreshSelection() {
       trace.append(traceOutput); summary.append(trace); selectionResults.append(summary);
     }
     if (selectionSnapshot.calendar) {
-      selectionResults.append(text('p', 'Calendar ' + selectionSnapshot.calendar.version + ' · Planned square-off ' + (sessionSnapshot.savedProfile?.squareOff || 'not configured') + ' IST.', 'muted'));
+      const calendar = selectionSnapshot.calendar;
+      sessionDetails.append(text('p', 'Calendar ' + calendar.version + ' · Planned square-off ' + (sessionSnapshot.savedProfile?.squareOff || 'not configured') + ' IST.', 'muted'));
+      if (calendar.scope) sessionDetails.append(text('p', calendar.scope, 'muted'));
     }
     if (selectionSnapshot.universeCount !== undefined) {
       selectionResults.append(text('p', selectionSnapshot.universeCount + ' instruments screened · ' +
@@ -143,6 +181,10 @@ async function refreshSelection() {
       if (config.capital !== 10000 || config.maxLoss !== 250 || config.dailyLossLimit !== 1000) {
         selectionResults.append(text('p', 'This saved account differs from the intended ₹10,000 / ₹250 / ₹1,000 paper profile. Its original limits apply.', 'notice'));
       }
+    }
+    selectionResults.append(sessionDetails);
+    for (const detail of selectionResults.querySelectorAll('details')) {
+      detail.open = expandedDetails.has(detail.querySelector('summary')?.textContent);
     }
     $('next-action').textContent = sessionSnapshot.nextAction || selectionSnapshot.reason || (selectionSnapshot.enabled ? 'Waiting for the next completed candle or qualifying stock.' : 'Review the saved account, connection and calendar, then start paper trading.');
     setSelectionButtons();
@@ -181,10 +223,8 @@ async function selectionMutation(path, body) {
   });
 }
 selectionStart.onclick = () => {
-  if (!selectionPermission.checked) { $('message').textContent = 'Confirm data permission and the displayed calendar before starting.'; return; }
   if (!selectionSnapshot) { $('message').textContent = 'Refresh session health first.'; return; }
-  selectionMutation('/api/auto-selection/start', {templateAccount: $('account').value,
-    calendar: selectionSnapshot.calendar, permitted: true});
+  selectionMutation('/api/auto-selection/start', {templateAccount: $('account').value});
 };
 selectionPause.onclick = () => selectionMutation('/api/auto-selection/control', {action: 'pause_entries'});
 selectionResume.onclick = () => selectionMutation('/api/auto-selection/control', {action: 'resume_entries'});
