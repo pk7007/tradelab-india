@@ -73,13 +73,16 @@ Code review scores cannot authorize broker orders, strategy promotion, changed
 loss limits or automatic changes to a running strategy. Use existing authorization
 and operational controls.
 
-## Automatic small-change commits
+## Automatic small-change commits and pushes
 
-The owner requests automatic local commits during active coding sessions.
+The owner requests automatic commits and pushes during active coding sessions.
 Follow docs/commit-workflow.md after each small coherent completed code change.
 Reuse one independent commit_guard subagent with .agents/commit-guard.md as its
 role brief. Complete suitable checks and review, stage explicit safe paths, then
-commit without asking again. Defer normal automatic commits if checks fail;
-explicitly requested checkpoints must describe pending checks honestly.
+commit and push to the approved origin repository without asking again.
+Verify the destination, branch and remote tip as described in that workflow.
+Defer ordinary automation if checks fail; explicitly requested checkpoints must
+describe pending checks honestly. Preserve local commits when a push is blocked.
 Do not include unrelated user work, secrets, private ledgers or licensed data.
-Push only when authorized. This instruction does not create a permanent watcher.
+Never force push or rewrite history. This instruction does not create a
+permanent watcher or authorize deployment or changes to trading permissions.
