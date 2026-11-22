@@ -1,5 +1,7 @@
 # Product brief
 
+> **Historical planning snapshot:** This document describes the original candidate MVP and research hypotheses. It is **not** the current implemented-feature inventory. For the present local research/paper prototype, read the [README](../README.md), [capability map](feature-status.md) and [22 November full audit](full-audit-2026-11-22.md). Live order dispatch remains locked; the earlier manual-order concept below should not be read as an enabled capability.
+
 ## Product
 
 TradeLab India is a local-first Indian market workspace. The first runnable slice connects one user's Zerodha account through Kite Connect to inspect account state and submit manually reviewed orders. Historical replay, simulations, and journaling remain planned product areas.
