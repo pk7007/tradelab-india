@@ -46,7 +46,7 @@ Use the Python executable in your virtual environment when multiple Python versi
 
 ## Optional broker configuration
 
-Copy `[.env.example](../.env.example)` to a **local**, ignored `.env` file only if you intend to set up the Zerodha read connection. Never commit secrets, account records or licensed data. Consult [market data setup](market-data-setup.md) for the redirect URL, provider permissions and retention rules.
+Copy [`.env.example`](../.env.example) to a **local**, ignored `.env` file only if you intend to set up the Zerodha read connection. Never commit secrets, account records or licensed data. Consult [market data setup](market-data-setup.md) for the redirect URL, provider permissions and retention rules.
 
 **No switch or credential can enable live order dispatch in the current release.** The server's readiness gate keeps it locked. Broker connection is **not** required for the demo or offline verification.
 
