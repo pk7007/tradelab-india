@@ -24,4 +24,4 @@ For each reviewed item, record date, official source URL, product/version, obser
 
 ## Current status
 
-No comparative research has been completed. No claim of a unique gap or competitive advantage is validated.
+An initial [23 November 2026 open-source repository benchmark](benchmark-study-2026-11-23.md) reviewed public metadata for 15 projects and README structures for seven of them, focused on presentation, trust boundaries and onboarding. It is **not** a feature-by-feature competitive evaluation or source-code/security audit. Product-gap interviews and unique competitive advantage remain unvalidated.
