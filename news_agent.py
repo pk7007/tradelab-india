@@ -19,6 +19,7 @@ from urllib.parse import urlsplit, urlunsplit, unquote_plus
 import xml.etree.ElementTree as ET
 
 from announcements import FEED as NSE_FEED, parse_feed as parse_nse
+from nse_filings import filing_metadata
 
 UTC = dt.timezone.utc
 FEEDS = {
@@ -194,10 +195,13 @@ class NewsAgent:
                     relevant += 1
                     # Preserve established article IDs and revision history across upgrades.
                     identity = hashlib.sha256((source + "|" + row["url"]).encode()).hexdigest()
+                    signature = [title, summary, published.astimezone(UTC).isoformat()]
+                    if "publisher" in row:
+                        signature.append(row["publisher"])
+                    if row.get("filingLinks"):
+                        signature.append(row["filingLinks"])
                     fingerprint = hashlib.sha256(json.dumps(
-                        [title, summary, published.astimezone(UTC).isoformat(),
-                         row["publisher"]] if "publisher" in row else
-                        [title, summary, published.astimezone(UTC).isoformat()], ensure_ascii=True).encode()).hexdigest()
+                        signature, ensure_ascii=True).encode()).hexdigest()
                     previous = db.execute("SELECT fingerprint, first_seen, revision_seen FROM news_seen WHERE identity=?",
                                           (identity,)).fetchone()
                     first_seen = previous[1] if previous else received.isoformat()
@@ -214,6 +218,9 @@ class NewsAgent:
                                        categories=[category for category, terms in CATEGORIES.items()
                                                    if any(mentions(text, term) for term in terms)] or ["other"],
                                        executionAllowed=False)
+                    if source == "nse":
+                        item["filings"] = filing_metadata(row.get("filingLinks", []),
+                            summary, item["publishedAt"], revision_seen)
                     headline = title.casefold()
                     if source == "google" and headline.endswith(" - "+item["publisher"].casefold()):
                         headline = headline[:-(3+len(item["publisher"]))]

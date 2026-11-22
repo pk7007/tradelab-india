@@ -14,15 +14,16 @@ function formatDisplayTime(value, now = new Date()) {
     : new Intl.DateTimeFormat('en-IN', {timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric'}).format(date);
   return label + ', ' + time + ' IST';
 }
-function groupNews(items, source = '', query = '') {
+function groupNews(items, source = '', query = '', kind = 'all') {
   const term = query.trim().toUpperCase();
   const groups = new Map();
   for (const item of items) {
     try { const url = new URL(item.url); if (url.protocol !== 'https:' || url.username || url.password) continue; } catch { continue; }
     if (source && item.source !== source) continue;
+    if (kind === 'filings' && (item.source !== 'nse' || !item.filings?.length)) continue;
     const mapped = (item.symbols || []).includes(term);
     if (term && !mapped && !((item.title || '') + ' ' + (item.description || '')).toUpperCase().includes(term)) continue;
-    const key = item.source === 'moneycontrol' ? item.id
+    const key = ['moneycontrol', 'nse'].includes(item.source) ? item.id
       : item.storyKey || String(item.title || item.url || item.id || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
     if (!groups.has(key)) groups.set(key, {key, items: [], relevance: term ? (mapped ? 'Mapped stock match' : 'Keyword match; stock mapping unverified') : ''});
     if (term && mapped) groups.get(key).relevance = 'Mapped stock match';
@@ -112,7 +113,13 @@ sourceLabel.append(newsSourceFilter);
 const searchLabel = text('label', 'Stock or keyword');
 const newsSearch = document.createElement('input');
 newsSearch.id = 'news-search'; newsSearch.type = 'search'; newsSearch.placeholder = 'For example, TCS or earnings';
-searchLabel.append(newsSearch); newsFilters.append(sourceLabel, searchLabel);
+searchLabel.append(newsSearch);
+const kindLabel = text('label', 'News type');
+const newsKindFilter = document.createElement('select'); newsKindFilter.id = 'news-kind-filter';
+for (const [value, label] of [['all', 'All news'], ['filings', 'NSE filings']]) {
+  const option = text('option', label); option.value = value; newsKindFilter.append(option);
+}
+kindLabel.append(newsKindFilter); newsFilters.append(sourceLabel, searchLabel, kindLabel);
 const newsCount = text('p', '', 'muted');
 const newsMore = text('button', 'More headlines'); newsMore.type = 'button'; newsMore.hidden = true;
 let newsSnapshot = null, newsVisible = 20;
@@ -127,7 +134,7 @@ function renderNewsItems(result) {
     const all = text('option', 'All sources'); all.value = ''; newsSourceFilter.append(all);
     for (const [value, name] of sources) { const option = text('option', name); option.value = value; newsSourceFilter.append(option); }
     newsSourceFilter.value = sources.has(selectedSource) ? selectedSource : '';
-    const groups = groupNews(result.items || [], newsSourceFilter.value, newsSearch.value);
+    const groups = groupNews(result.items || [], newsSourceFilter.value, newsSearch.value, newsKindFilter.value);
     newsCount.textContent = groups.length + ' matching stories';
     const openItems = new Set([...announcementItems.querySelectorAll('details[open]')].map(detail => detail.dataset.newsId));
     const focusedItem = document.activeElement?.closest('[data-news-id]');
@@ -150,6 +157,18 @@ function renderNewsItems(result) {
       if (item.description) row.append(text('p', item.description));
       row.append(text('small', 'Published ' + formatDisplayTime(item.publishedAt)));
       if (group.relevance) row.append(text('small', group.relevance));
+      for (const filing of item.source === 'nse' ? (item.filings || []) : []) {
+        try {
+          const documentUrl = new URL(filing.url);
+          if (documentUrl.protocol !== 'https:' || documentUrl.username || documentUrl.password
+              || (documentUrl.port && documentUrl.port !== '443')
+              || !['nsearchives.nseindia.com', 'archives.nseindia.com', 'www.nseindia.com', 'www.nseindia.in'].includes(documentUrl.hostname)
+              || !documentUrl.pathname.toLowerCase().endsWith('.pdf')) continue;
+          const documentLink = text('a', 'Open NSE filing - PDF');
+          documentLink.href = documentUrl.href; documentLink.target = '_blank'; documentLink.rel = 'noopener noreferrer';
+          row.append(text('p', filing.documentType + ' - Original exchange filing'), documentLink);
+        } catch {}
+      }
       const details = text('details', '', 'news-item-details'); details.dataset.newsId = group.key;
       details.open = openItems.has(group.key);
       details.append(text('summary', 'Research details' + (group.items.length > 1 ? ' · ' + group.items.length + ' related items' : '')),
@@ -173,7 +192,7 @@ function renderNewsItems(result) {
     newsMore.hidden = groups.length <= newsVisible;
     if (focusInsideNews && !restoredFocus) announcementRefresh.focus({preventScroll: true});
 }
-newsSourceFilter.onchange = newsSearch.oninput = () => { newsVisible = 20; if (newsSnapshot) renderNewsItems(newsSnapshot); };
+newsSourceFilter.onchange = newsKindFilter.onchange = newsSearch.oninput = () => { newsVisible = 20; if (newsSnapshot) renderNewsItems(newsSnapshot); };
 newsMore.onclick = () => { newsVisible += 20; if (newsSnapshot) renderNewsItems(newsSnapshot); };
 async function refreshAnnouncements() {
   if (announcementBusy || document.hidden) return;

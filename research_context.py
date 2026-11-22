@@ -19,6 +19,8 @@ def attach_announcements(request,feed):
                 if cutoff-published>dt.timedelta(hours=24): continue
                 record = {k:item[k] for k in ('title','url','publishedAt','availableAt','symbols')}
                 record.update(id=item.get('id'), source=item.get('source', 'news'))
+                if item.get('source') == 'nse' and item.get('filings'):
+                    record['filings'] = item['filings'][:10]
                 eligible.append(record)
             except (KeyError,ValueError,TypeError): continue
     values['records']=records+eligible
@@ -34,10 +36,14 @@ def evidence_references(records, symbol):
             continue
         identity = dict(id=record.get('id'), source=record.get('source', 'news'),
                         publishedAt=record['publishedAt'], availableAt=record['availableAt'], symbol=symbol)
+        if record.get('filings'):
+            identity['filingIds'] = [row['id'] for row in record['filings'][:10]]
         fingerprint = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
         source = identity['source'] if identity['source'] in ('moneycontrol', 'nse', 'et', 'google') else 'news'
         references[fingerprint] = dict(inputHash=fingerprint, symbol=symbol, source=source,
             publishedAt=identity['publishedAt'], availableAt=identity['availableAt'])
+        if identity.get('filingIds'):
+            references[fingerprint]['filingIds'] = identity['filingIds']
         if len(references) >= 100:
             break
     return list(references.values())

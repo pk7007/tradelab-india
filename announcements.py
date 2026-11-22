@@ -9,6 +9,7 @@ import urllib.request
 from urllib.parse import urlsplit
 import xml.etree.ElementTree as ET
 from research import IST
+from nse_filings import filing_links
 
 FEED='https://nsearchives.nseindia.com/content/RSS/Online_announcements.xml'
 
@@ -38,7 +39,8 @@ def parse_feed(raw, received):
         seen.add(identity)
         description=re.sub('<[^>]+>',' ',node.findtext('description') or '')[:2000]
         items.append(dict(id=identity,title=title,description=description,url=url,publishedAt=published.isoformat(),
-                          receivedAt=received.isoformat(),availableAt=received.isoformat(),symbols=[]))
+                          receivedAt=received.isoformat(),availableAt=received.isoformat(),symbols=[],
+                          filingLinks=filing_links(node,url)))
     return sorted(items,key=lambda r:r['publishedAt'],reverse=True)
 
 

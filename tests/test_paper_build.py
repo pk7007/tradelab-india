@@ -21,7 +21,8 @@ class PaperBuildTests(unittest.TestCase):
 
         original = fingerprint(content)
         for dependency in ('strategy_contract.py', 'research.py', 'research_context.py',
-                           'integrated_news.py', 'syndication.py', 'syndication_transport.py'):
+                           'integrated_news.py', 'syndication.py', 'syndication_transport.py', 'news_agent.py', 'dashboard_news.py',
+                           'announcements.py', 'nse_filings.py'):
             with self.subTest(dependency=dependency):
                 self.assertIn(dependency, names)
                 altered = dict(content)

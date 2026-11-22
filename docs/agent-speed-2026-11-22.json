@@ -1,0 +1,3263 @@
+{
+  "version": "agent-speed-v1",
+  "measuredAt": "2026-11-22T13:40:39.939523+00:00",
+  "python": "3.11.3",
+  "platform": "Windows",
+  "roleCount": 512,
+  "repetitionsPerRole": 25,
+  "syntheticRecordsPerCall": 1,
+  "localHandler": {
+    "medianMs": 0.0262,
+    "p95Ms": 0.0917,
+    "maximumMs": 1.5561
+  },
+  "subprocessQueue": {
+    "medianMs": 201.5065,
+    "p95Ms": 212.1557,
+    "maximumMs": 212.1557
+  },
+  "queueSamples": 3,
+  "families": {
+    "instrument-reference": {
+      "medianMs": 0.0298,
+      "p95Ms": 0.1528,
+      "maximumMs": 0.2621
+    },
+    "exchange-calendar": {
+      "medianMs": 0.0236,
+      "p95Ms": 0.0954,
+      "maximumMs": 0.9373
+    },
+    "quote-observations": {
+      "medianMs": 0.0243,
+      "p95Ms": 0.095,
+      "maximumMs": 0.2378
+    },
+    "historical-candles": {
+      "medianMs": 0.0274,
+      "p95Ms": 0.1451,
+      "maximumMs": 0.2402
+    },
+    "corporate-actions": {
+      "medianMs": 0.027,
+      "p95Ms": 0.0666,
+      "maximumMs": 0.2093
+    },
+    "news-ingestion": {
+      "medianMs": 0.0213,
+      "p95Ms": 0.0688,
+      "maximumMs": 0.2327
+    },
+    "event-entity-mapping": {
+      "medianMs": 0.0207,
+      "p95Ms": 0.096,
+      "maximumMs": 0.2904
+    },
+    "earnings-disclosures": {
+      "medianMs": 0.0233,
+      "p95Ms": 0.1077,
+      "maximumMs": 0.4559
+    },
+    "fundamental-statements": {
+      "medianMs": 0.0278,
+      "p95Ms": 0.1491,
+      "maximumMs": 0.4756
+    },
+    "financial-ratios": {
+      "medianMs": 0.0252,
+      "p95Ms": 0.0903,
+      "maximumMs": 0.1806
+    },
+    "valuation-assumptions": {
+      "medianMs": 0.0262,
+      "p95Ms": 0.0951,
+      "maximumMs": 0.3081
+    },
+    "governance-evidence": {
+      "medianMs": 0.025,
+      "p95Ms": 0.0665,
+      "maximumMs": 0.8945
+    },
+    "sector-classification": {
+      "medianMs": 0.0241,
+      "p95Ms": 0.0597,
+      "maximumMs": 0.2353
+    },
+    "benchmark-data": {
+      "medianMs": 0.0277,
+      "p95Ms": 0.0874,
+      "maximumMs": 0.164
+    },
+    "technical-indicators": {
+      "medianMs": 0.0299,
+      "p95Ms": 0.1046,
+      "maximumMs": 0.3906
+    },
+    "momentum-relative-strength": {
+      "medianMs": 0.0272,
+      "p95Ms": 0.1105,
+      "maximumMs": 0.3929
+    },
+    "market-regimes": {
+      "medianMs": 0.0267,
+      "p95Ms": 0.0555,
+      "maximumMs": 0.2691
+    },
+    "liquidity-spreads": {
+      "medianMs": 0.027,
+      "p95Ms": 0.1015,
+      "maximumMs": 0.1804
+    },
+    "transaction-costs": {
+      "medianMs": 0.0266,
+      "p95Ms": 0.114,
+      "maximumMs": 1.1076
+    },
+    "position-sizing": {
+      "medianMs": 0.0263,
+      "p95Ms": 0.1213,
+      "maximumMs": 0.566
+    },
+    "trade-risk": {
+      "medianMs": 0.0251,
+      "p95Ms": 0.1288,
+      "maximumMs": 0.4016
+    },
+    "portfolio-exposure": {
+      "medianMs": 0.0213,
+      "p95Ms": 0.0863,
+      "maximumMs": 0.843
+    },
+    "backtest-execution": {
+      "medianMs": 0.0227,
+      "p95Ms": 0.0846,
+      "maximumMs": 1.5561
+    },
+    "statistical-validation": {
+      "medianMs": 0.0244,
+      "p95Ms": 0.0902,
+      "maximumMs": 0.1114
+    },
+    "benchmark-evaluation": {
+      "medianMs": 0.0299,
+      "p95Ms": 0.1033,
+      "maximumMs": 0.2819
+    },
+    "performance-attribution": {
+      "medianMs": 0.0269,
+      "p95Ms": 0.089,
+      "maximumMs": 0.2832
+    },
+    "strategy-versioning": {
+      "medianMs": 0.0236,
+      "p95Ms": 0.0606,
+      "maximumMs": 0.0865
+    },
+    "paper-execution": {
+      "medianMs": 0.0308,
+      "p95Ms": 0.1147,
+      "maximumMs": 0.2105
+    },
+    "order-position-reconciliation": {
+      "medianMs": 0.0347,
+      "p95Ms": 0.1142,
+      "maximumMs": 0.2731
+    },
+    "recovery-persistence": {
+      "medianMs": 0.023,
+      "p95Ms": 0.0537,
+      "maximumMs": 0.0815
+    },
+    "operations-security": {
+      "medianMs": 0.0255,
+      "p95Ms": 0.0852,
+      "maximumMs": 0.1306
+    },
+    "application-reporting": {
+      "medianMs": 0.0285,
+      "p95Ms": 0.0877,
+      "maximumMs": 0.4119
+    }
+  },
+  "roles": [
+    {
+      "role": "instrument-reference.intake",
+      "medianMs": 0.0289,
+      "p95Ms": 0.1771,
+      "maximumMs": 0.1845
+    },
+    {
+      "role": "instrument-reference.normalization",
+      "medianMs": 0.0323,
+      "p95Ms": 0.0474,
+      "maximumMs": 0.0605
+    },
+    {
+      "role": "instrument-reference.schema-validation",
+      "medianMs": 0.0235,
+      "p95Ms": 0.0814,
+      "maximumMs": 0.0958
+    },
+    {
+      "role": "instrument-reference.source-validation",
+      "medianMs": 0.023,
+      "p95Ms": 0.0246,
+      "maximumMs": 0.025
+    },
+    {
+      "role": "instrument-reference.availability-validation",
+      "medianMs": 0.0282,
+      "p95Ms": 0.0387,
+      "maximumMs": 0.081
+    },
+    {
+      "role": "instrument-reference.completeness",
+      "medianMs": 0.0252,
+      "p95Ms": 0.0731,
+      "maximumMs": 0.2621
+    },
+    {
+      "role": "instrument-reference.duplicate-revision-handling",
+      "medianMs": 0.0224,
+      "p95Ms": 0.027,
+      "maximumMs": 0.0369
+    },
+    {
+      "role": "instrument-reference.feature-calculation",
+      "medianMs": 0.0236,
+      "p95Ms": 0.0316,
+      "maximumMs": 0.0643
+    },
+    {
+      "role": "instrument-reference.analysis",
+      "medianMs": 0.0395,
+      "p95Ms": 0.1114,
+      "maximumMs": 0.1474
+    },
+    {
+      "role": "instrument-reference.anomaly-detection",
+      "medianMs": 0.0235,
+      "p95Ms": 0.0275,
+      "maximumMs": 0.0392
+    },
+    {
+      "role": "instrument-reference.evidence-preparation",
+      "medianMs": 0.0299,
+      "p95Ms": 0.0437,
+      "maximumMs": 0.055
+    },
+    {
+      "role": "instrument-reference.scenario-testing",
+      "medianMs": 0.0354,
+      "p95Ms": 0.0655,
+      "maximumMs": 0.0822
+    },
+    {
+      "role": "instrument-reference.baseline-comparison",
+      "medianMs": 0.0513,
+      "p95Ms": 0.1471,
+      "maximumMs": 0.2237
+    },
+    {
+      "role": "instrument-reference.independent-review",
+      "medianMs": 0.1596,
+      "p95Ms": 0.2034,
+      "maximumMs": 0.2272
+    },
+    {
+      "role": "instrument-reference.monitoring",
+      "medianMs": 0.0405,
+      "p95Ms": 0.105,
+      "maximumMs": 0.1323
+    },
+    {
+      "role": "instrument-reference.reporting",
+      "medianMs": 0.0381,
+      "p95Ms": 0.0959,
+      "maximumMs": 0.1013
+    },
+    {
+      "role": "exchange-calendar.intake",
+      "medianMs": 0.0423,
+      "p95Ms": 0.1006,
+      "maximumMs": 0.1624
+    },
+    {
+      "role": "exchange-calendar.normalization",
+      "medianMs": 0.0464,
+      "p95Ms": 0.1094,
+      "maximumMs": 0.1541
+    },
+    {
+      "role": "exchange-calendar.schema-validation",
+      "medianMs": 0.0207,
+      "p95Ms": 0.0286,
+      "maximumMs": 0.0557
+    },
+    {
+      "role": "exchange-calendar.source-validation",
+      "medianMs": 0.0206,
+      "p95Ms": 0.0247,
+      "maximumMs": 0.0609
+    },
+    {
+      "role": "exchange-calendar.availability-validation",
+      "medianMs": 0.0263,
+      "p95Ms": 0.069,
+      "maximumMs": 0.1214
+    },
+    {
+      "role": "exchange-calendar.completeness",
+      "medianMs": 0.022,
+      "p95Ms": 0.0237,
+      "maximumMs": 0.0251
+    },
+    {
+      "role": "exchange-calendar.duplicate-revision-handling",
+      "medianMs": 0.0195,
+      "p95Ms": 0.0207,
+      "maximumMs": 0.0226
+    },
+    {
+      "role": "exchange-calendar.feature-calculation",
+      "medianMs": 0.0236,
+      "p95Ms": 0.0261,
+      "maximumMs": 0.0614
+    },
+    {
+      "role": "exchange-calendar.analysis",
+      "medianMs": 0.0214,
+      "p95Ms": 0.024,
+      "maximumMs": 0.024
+    },
+    {
+      "role": "exchange-calendar.anomaly-detection",
+      "medianMs": 0.0207,
+      "p95Ms": 0.0299,
+      "maximumMs": 0.0351
+    },
+    {
+      "role": "exchange-calendar.evidence-preparation",
+      "medianMs": 0.0272,
+      "p95Ms": 0.0931,
+      "maximumMs": 0.1025
+    },
+    {
+      "role": "exchange-calendar.scenario-testing",
+      "medianMs": 0.0691,
+      "p95Ms": 0.1372,
+      "maximumMs": 0.9373
+    },
+    {
+      "role": "exchange-calendar.baseline-comparison",
+      "medianMs": 0.08,
+      "p95Ms": 0.0954,
+      "maximumMs": 0.1044
+    },
+    {
+      "role": "exchange-calendar.independent-review",
+      "medianMs": 0.0891,
+      "p95Ms": 0.1024,
+      "maximumMs": 0.1565
+    },
+    {
+      "role": "exchange-calendar.monitoring",
+      "medianMs": 0.0211,
+      "p95Ms": 0.0227,
+      "maximumMs": 0.0236
+    },
+    {
+      "role": "exchange-calendar.reporting",
+      "medianMs": 0.0201,
+      "p95Ms": 0.0312,
+      "maximumMs": 0.0353
+    },
+    {
+      "role": "quote-observations.intake",
+      "medianMs": 0.0198,
+      "p95Ms": 0.0233,
+      "maximumMs": 0.0333
+    },
+    {
+      "role": "quote-observations.normalization",
+      "medianMs": 0.0263,
+      "p95Ms": 0.0342,
+      "maximumMs": 0.0347
+    },
+    {
+      "role": "quote-observations.schema-validation",
+      "medianMs": 0.02,
+      "p95Ms": 0.0214,
+      "maximumMs": 0.0217
+    },
+    {
+      "role": "quote-observations.source-validation",
+      "medianMs": 0.0214,
+      "p95Ms": 0.031,
+      "maximumMs": 0.0551
+    },
+    {
+      "role": "quote-observations.availability-validation",
+      "medianMs": 0.0245,
+      "p95Ms": 0.0252,
+      "maximumMs": 0.0261
+    },
+    {
+      "role": "quote-observations.completeness",
+      "medianMs": 0.0213,
+      "p95Ms": 0.0234,
+      "maximumMs": 0.0234
+    },
+    {
+      "role": "quote-observations.duplicate-revision-handling",
+      "medianMs": 0.0193,
+      "p95Ms": 0.0334,
+      "maximumMs": 0.0456
+    },
+    {
+      "role": "quote-observations.feature-calculation",
+      "medianMs": 0.0209,
+      "p95Ms": 0.0217,
+      "maximumMs": 0.0224
+    },
+    {
+      "role": "quote-observations.analysis",
+      "medianMs": 0.04,
+      "p95Ms": 0.0452,
+      "maximumMs": 0.0541
+    },
+    {
+      "role": "quote-observations.anomaly-detection",
+      "medianMs": 0.0216,
+      "p95Ms": 0.0257,
+      "maximumMs": 0.0296
+    },
+    {
+      "role": "quote-observations.evidence-preparation",
+      "medianMs": 0.0257,
+      "p95Ms": 0.0285,
+      "maximumMs": 0.0403
+    },
+    {
+      "role": "quote-observations.scenario-testing",
+      "medianMs": 0.0553,
+      "p95Ms": 0.095,
+      "maximumMs": 0.1163
+    },
+    {
+      "role": "quote-observations.baseline-comparison",
+      "medianMs": 0.0491,
+      "p95Ms": 0.1174,
+      "maximumMs": 0.1425
+    },
+    {
+      "role": "quote-observations.independent-review",
+      "medianMs": 0.096,
+      "p95Ms": 0.1811,
+      "maximumMs": 0.2378
+    },
+    {
+      "role": "quote-observations.monitoring",
+      "medianMs": 0.0258,
+      "p95Ms": 0.0609,
+      "maximumMs": 0.062
+    },
+    {
+      "role": "quote-observations.reporting",
+      "medianMs": 0.0219,
+      "p95Ms": 0.0376,
+      "maximumMs": 0.0818
+    },
+    {
+      "role": "historical-candles.intake",
+      "medianMs": 0.0228,
+      "p95Ms": 0.0298,
+      "maximumMs": 0.0364
+    },
+    {
+      "role": "historical-candles.normalization",
+      "medianMs": 0.0285,
+      "p95Ms": 0.0312,
+      "maximumMs": 0.0325
+    },
+    {
+      "role": "historical-candles.schema-validation",
+      "medianMs": 0.0223,
+      "p95Ms": 0.0251,
+      "maximumMs": 0.0298
+    },
+    {
+      "role": "historical-candles.source-validation",
+      "medianMs": 0.023,
+      "p95Ms": 0.0237,
+      "maximumMs": 0.0241
+    },
+    {
+      "role": "historical-candles.availability-validation",
+      "medianMs": 0.0277,
+      "p95Ms": 0.0435,
+      "maximumMs": 0.0535
+    },
+    {
+      "role": "historical-candles.completeness",
+      "medianMs": 0.0267,
+      "p95Ms": 0.028,
+      "maximumMs": 0.0286
+    },
+    {
+      "role": "historical-candles.duplicate-revision-handling",
+      "medianMs": 0.0239,
+      "p95Ms": 0.0248,
+      "maximumMs": 0.025
+    },
+    {
+      "role": "historical-candles.feature-calculation",
+      "medianMs": 0.0266,
+      "p95Ms": 0.0281,
+      "maximumMs": 0.0371
+    },
+    {
+      "role": "historical-candles.analysis",
+      "medianMs": 0.0706,
+      "p95Ms": 0.0782,
+      "maximumMs": 0.0842
+    },
+    {
+      "role": "historical-candles.anomaly-detection",
+      "medianMs": 0.0255,
+      "p95Ms": 0.0293,
+      "maximumMs": 0.0302
+    },
+    {
+      "role": "historical-candles.evidence-preparation",
+      "medianMs": 0.0752,
+      "p95Ms": 0.1687,
+      "maximumMs": 0.2402
+    },
+    {
+      "role": "historical-candles.scenario-testing",
+      "medianMs": 0.0651,
+      "p95Ms": 0.0812,
+      "maximumMs": 0.1138
+    },
+    {
+      "role": "historical-candles.baseline-comparison",
+      "medianMs": 0.0574,
+      "p95Ms": 0.1061,
+      "maximumMs": 0.1611
+    },
+    {
+      "role": "historical-candles.independent-review",
+      "medianMs": 0.1504,
+      "p95Ms": 0.1783,
+      "maximumMs": 0.2019
+    },
+    {
+      "role": "historical-candles.monitoring",
+      "medianMs": 0.0276,
+      "p95Ms": 0.031,
+      "maximumMs": 0.0381
+    },
+    {
+      "role": "historical-candles.reporting",
+      "medianMs": 0.0267,
+      "p95Ms": 0.0274,
+      "maximumMs": 0.041
+    },
+    {
+      "role": "corporate-actions.intake",
+      "medianMs": 0.0215,
+      "p95Ms": 0.023,
+      "maximumMs": 0.0237
+    },
+    {
+      "role": "corporate-actions.normalization",
+      "medianMs": 0.0279,
+      "p95Ms": 0.0421,
+      "maximumMs": 0.0426
+    },
+    {
+      "role": "corporate-actions.schema-validation",
+      "medianMs": 0.0222,
+      "p95Ms": 0.0232,
+      "maximumMs": 0.024
+    },
+    {
+      "role": "corporate-actions.source-validation",
+      "medianMs": 0.0227,
+      "p95Ms": 0.0232,
+      "maximumMs": 0.0237
+    },
+    {
+      "role": "corporate-actions.availability-validation",
+      "medianMs": 0.0282,
+      "p95Ms": 0.0294,
+      "maximumMs": 0.0388
+    },
+    {
+      "role": "corporate-actions.completeness",
+      "medianMs": 0.0242,
+      "p95Ms": 0.0258,
+      "maximumMs": 0.0265
+    },
+    {
+      "role": "corporate-actions.duplicate-revision-handling",
+      "medianMs": 0.0221,
+      "p95Ms": 0.023,
+      "maximumMs": 0.0262
+    },
+    {
+      "role": "corporate-actions.feature-calculation",
+      "medianMs": 0.0249,
+      "p95Ms": 0.0896,
+      "maximumMs": 0.2044
+    },
+    {
+      "role": "corporate-actions.analysis",
+      "medianMs": 0.059,
+      "p95Ms": 0.0749,
+      "maximumMs": 0.1556
+    },
+    {
+      "role": "corporate-actions.anomaly-detection",
+      "medianMs": 0.0287,
+      "p95Ms": 0.0531,
+      "maximumMs": 0.066
+    },
+    {
+      "role": "corporate-actions.evidence-preparation",
+      "medianMs": 0.0523,
+      "p95Ms": 0.1076,
+      "maximumMs": 0.2093
+    },
+    {
+      "role": "corporate-actions.scenario-testing",
+      "medianMs": 0.0411,
+      "p95Ms": 0.0476,
+      "maximumMs": 0.0572
+    },
+    {
+      "role": "corporate-actions.baseline-comparison",
+      "medianMs": 0.0544,
+      "p95Ms": 0.069,
+      "maximumMs": 0.081
+    },
+    {
+      "role": "corporate-actions.independent-review",
+      "medianMs": 0.0637,
+      "p95Ms": 0.0696,
+      "maximumMs": 0.074
+    },
+    {
+      "role": "corporate-actions.monitoring",
+      "medianMs": 0.0242,
+      "p95Ms": 0.0255,
+      "maximumMs": 0.0269
+    },
+    {
+      "role": "corporate-actions.reporting",
+      "medianMs": 0.0225,
+      "p95Ms": 0.0295,
+      "maximumMs": 0.0302
+    },
+    {
+      "role": "news-ingestion.intake",
+      "medianMs": 0.0213,
+      "p95Ms": 0.0227,
+      "maximumMs": 0.0227
+    },
+    {
+      "role": "news-ingestion.normalization",
+      "medianMs": 0.0273,
+      "p95Ms": 0.0298,
+      "maximumMs": 0.0457
+    },
+    {
+      "role": "news-ingestion.schema-validation",
+      "medianMs": 0.021,
+      "p95Ms": 0.0322,
+      "maximumMs": 0.0344
+    },
+    {
+      "role": "news-ingestion.source-validation",
+      "medianMs": 0.0202,
+      "p95Ms": 0.0213,
+      "maximumMs": 0.023
+    },
+    {
+      "role": "news-ingestion.availability-validation",
+      "medianMs": 0.025,
+      "p95Ms": 0.0261,
+      "maximumMs": 0.0268
+    },
+    {
+      "role": "news-ingestion.completeness",
+      "medianMs": 0.0213,
+      "p95Ms": 0.023,
+      "maximumMs": 0.0359
+    },
+    {
+      "role": "news-ingestion.duplicate-revision-handling",
+      "medianMs": 0.0187,
+      "p95Ms": 0.0199,
+      "maximumMs": 0.0266
+    },
+    {
+      "role": "news-ingestion.feature-calculation",
+      "medianMs": 0.0205,
+      "p95Ms": 0.0212,
+      "maximumMs": 0.0217
+    },
+    {
+      "role": "news-ingestion.analysis",
+      "medianMs": 0.0204,
+      "p95Ms": 0.0214,
+      "maximumMs": 0.0232
+    },
+    {
+      "role": "news-ingestion.anomaly-detection",
+      "medianMs": 0.0205,
+      "p95Ms": 0.0221,
+      "maximumMs": 0.0278
+    },
+    {
+      "role": "news-ingestion.evidence-preparation",
+      "medianMs": 0.0438,
+      "p95Ms": 0.1067,
+      "maximumMs": 0.1749
+    },
+    {
+      "role": "news-ingestion.scenario-testing",
+      "medianMs": 0.0555,
+      "p95Ms": 0.1239,
+      "maximumMs": 0.1342
+    },
+    {
+      "role": "news-ingestion.baseline-comparison",
+      "medianMs": 0.0489,
+      "p95Ms": 0.1375,
+      "maximumMs": 0.2327
+    },
+    {
+      "role": "news-ingestion.independent-review",
+      "medianMs": 0.0583,
+      "p95Ms": 0.1098,
+      "maximumMs": 0.1896
+    },
+    {
+      "role": "news-ingestion.monitoring",
+      "medianMs": 0.0209,
+      "p95Ms": 0.0221,
+      "maximumMs": 0.0235
+    },
+    {
+      "role": "news-ingestion.reporting",
+      "medianMs": 0.0197,
+      "p95Ms": 0.0222,
+      "maximumMs": 0.026
+    },
+    {
+      "role": "event-entity-mapping.intake",
+      "medianMs": 0.0191,
+      "p95Ms": 0.0199,
+      "maximumMs": 0.0586
+    },
+    {
+      "role": "event-entity-mapping.normalization",
+      "medianMs": 0.0246,
+      "p95Ms": 0.0393,
+      "maximumMs": 0.098
+    },
+    {
+      "role": "event-entity-mapping.schema-validation",
+      "medianMs": 0.0192,
+      "p95Ms": 0.0525,
+      "maximumMs": 0.0595
+    },
+    {
+      "role": "event-entity-mapping.source-validation",
+      "medianMs": 0.0194,
+      "p95Ms": 0.0201,
+      "maximumMs": 0.0203
+    },
+    {
+      "role": "event-entity-mapping.availability-validation",
+      "medianMs": 0.0233,
+      "p95Ms": 0.0444,
+      "maximumMs": 0.0598
+    },
+    {
+      "role": "event-entity-mapping.completeness",
+      "medianMs": 0.0203,
+      "p95Ms": 0.0571,
+      "maximumMs": 0.1149
+    },
+    {
+      "role": "event-entity-mapping.duplicate-revision-handling",
+      "medianMs": 0.0182,
+      "p95Ms": 0.0199,
+      "maximumMs": 0.0219
+    },
+    {
+      "role": "event-entity-mapping.feature-calculation",
+      "medianMs": 0.021,
+      "p95Ms": 0.023,
+      "maximumMs": 0.0311
+    },
+    {
+      "role": "event-entity-mapping.analysis",
+      "medianMs": 0.0198,
+      "p95Ms": 0.0201,
+      "maximumMs": 0.0209
+    },
+    {
+      "role": "event-entity-mapping.anomaly-detection",
+      "medianMs": 0.0191,
+      "p95Ms": 0.0212,
+      "maximumMs": 0.0341
+    },
+    {
+      "role": "event-entity-mapping.evidence-preparation",
+      "medianMs": 0.025,
+      "p95Ms": 0.0424,
+      "maximumMs": 0.044
+    },
+    {
+      "role": "event-entity-mapping.scenario-testing",
+      "medianMs": 0.0322,
+      "p95Ms": 0.0393,
+      "maximumMs": 0.0491
+    },
+    {
+      "role": "event-entity-mapping.baseline-comparison",
+      "medianMs": 0.0449,
+      "p95Ms": 0.148,
+      "maximumMs": 0.157
+    },
+    {
+      "role": "event-entity-mapping.independent-review",
+      "medianMs": 0.1079,
+      "p95Ms": 0.1966,
+      "maximumMs": 0.2904
+    },
+    {
+      "role": "event-entity-mapping.monitoring",
+      "medianMs": 0.0207,
+      "p95Ms": 0.0348,
+      "maximumMs": 0.0395
+    },
+    {
+      "role": "event-entity-mapping.reporting",
+      "medianMs": 0.0192,
+      "p95Ms": 0.0213,
+      "maximumMs": 0.028
+    },
+    {
+      "role": "earnings-disclosures.intake",
+      "medianMs": 0.0202,
+      "p95Ms": 0.0228,
+      "maximumMs": 0.0251
+    },
+    {
+      "role": "earnings-disclosures.normalization",
+      "medianMs": 0.026,
+      "p95Ms": 0.0475,
+      "maximumMs": 0.0491
+    },
+    {
+      "role": "earnings-disclosures.schema-validation",
+      "medianMs": 0.0193,
+      "p95Ms": 0.02,
+      "maximumMs": 0.0208
+    },
+    {
+      "role": "earnings-disclosures.source-validation",
+      "medianMs": 0.0201,
+      "p95Ms": 0.0302,
+      "maximumMs": 0.0341
+    },
+    {
+      "role": "earnings-disclosures.availability-validation",
+      "medianMs": 0.0246,
+      "p95Ms": 0.027,
+      "maximumMs": 0.0322
+    },
+    {
+      "role": "earnings-disclosures.completeness",
+      "medianMs": 0.0215,
+      "p95Ms": 0.023,
+      "maximumMs": 0.0269
+    },
+    {
+      "role": "earnings-disclosures.duplicate-revision-handling",
+      "medianMs": 0.0199,
+      "p95Ms": 0.0206,
+      "maximumMs": 0.0341
+    },
+    {
+      "role": "earnings-disclosures.feature-calculation",
+      "medianMs": 0.0217,
+      "p95Ms": 0.0229,
+      "maximumMs": 0.0233
+    },
+    {
+      "role": "earnings-disclosures.analysis",
+      "medianMs": 0.0489,
+      "p95Ms": 0.0542,
+      "maximumMs": 0.074
+    },
+    {
+      "role": "earnings-disclosures.anomaly-detection",
+      "medianMs": 0.0228,
+      "p95Ms": 0.0239,
+      "maximumMs": 0.0261
+    },
+    {
+      "role": "earnings-disclosures.evidence-preparation",
+      "medianMs": 0.0286,
+      "p95Ms": 0.0322,
+      "maximumMs": 0.0424
+    },
+    {
+      "role": "earnings-disclosures.scenario-testing",
+      "medianMs": 0.0398,
+      "p95Ms": 0.041,
+      "maximumMs": 0.0545
+    },
+    {
+      "role": "earnings-disclosures.baseline-comparison",
+      "medianMs": 0.0516,
+      "p95Ms": 0.0558,
+      "maximumMs": 0.0755
+    },
+    {
+      "role": "earnings-disclosures.independent-review",
+      "medianMs": 0.1102,
+      "p95Ms": 0.3888,
+      "maximumMs": 0.4559
+    },
+    {
+      "role": "earnings-disclosures.monitoring",
+      "medianMs": 0.0235,
+      "p95Ms": 0.0466,
+      "maximumMs": 0.0582
+    },
+    {
+      "role": "earnings-disclosures.reporting",
+      "medianMs": 0.0221,
+      "p95Ms": 0.0237,
+      "maximumMs": 0.0367
+    },
+    {
+      "role": "fundamental-statements.intake",
+      "medianMs": 0.0226,
+      "p95Ms": 0.0255,
+      "maximumMs": 0.04
+    },
+    {
+      "role": "fundamental-statements.normalization",
+      "medianMs": 0.0297,
+      "p95Ms": 0.0351,
+      "maximumMs": 0.0442
+    },
+    {
+      "role": "fundamental-statements.schema-validation",
+      "medianMs": 0.0224,
+      "p95Ms": 0.0234,
+      "maximumMs": 0.0241
+    },
+    {
+      "role": "fundamental-statements.source-validation",
+      "medianMs": 0.0233,
+      "p95Ms": 0.0241,
+      "maximumMs": 0.05
+    },
+    {
+      "role": "fundamental-statements.availability-validation",
+      "medianMs": 0.0285,
+      "p95Ms": 0.0297,
+      "maximumMs": 0.038
+    },
+    {
+      "role": "fundamental-statements.completeness",
+      "medianMs": 0.0249,
+      "p95Ms": 0.0263,
+      "maximumMs": 0.0305
+    },
+    {
+      "role": "fundamental-statements.duplicate-revision-handling",
+      "medianMs": 0.0234,
+      "p95Ms": 0.0249,
+      "maximumMs": 0.0461
+    },
+    {
+      "role": "fundamental-statements.feature-calculation",
+      "medianMs": 0.026,
+      "p95Ms": 0.0274,
+      "maximumMs": 0.0358
+    },
+    {
+      "role": "fundamental-statements.analysis",
+      "medianMs": 0.0611,
+      "p95Ms": 0.063,
+      "maximumMs": 0.066
+    },
+    {
+      "role": "fundamental-statements.anomaly-detection",
+      "medianMs": 0.0268,
+      "p95Ms": 0.0348,
+      "maximumMs": 0.041
+    },
+    {
+      "role": "fundamental-statements.evidence-preparation",
+      "medianMs": 0.0345,
+      "p95Ms": 0.0356,
+      "maximumMs": 0.0377
+    },
+    {
+      "role": "fundamental-statements.scenario-testing",
+      "medianMs": 0.0464,
+      "p95Ms": 0.0492,
+      "maximumMs": 0.0548
+    },
+    {
+      "role": "fundamental-statements.baseline-comparison",
+      "medianMs": 0.0606,
+      "p95Ms": 0.0911,
+      "maximumMs": 0.119
+    },
+    {
+      "role": "fundamental-statements.independent-review",
+      "medianMs": 0.1744,
+      "p95Ms": 0.3047,
+      "maximumMs": 0.4756
+    },
+    {
+      "role": "fundamental-statements.monitoring",
+      "medianMs": 0.028,
+      "p95Ms": 0.1812,
+      "maximumMs": 0.1851
+    },
+    {
+      "role": "fundamental-statements.reporting",
+      "medianMs": 0.0248,
+      "p95Ms": 0.0399,
+      "maximumMs": 0.0433
+    },
+    {
+      "role": "financial-ratios.intake",
+      "medianMs": 0.0216,
+      "p95Ms": 0.032,
+      "maximumMs": 0.0327
+    },
+    {
+      "role": "financial-ratios.normalization",
+      "medianMs": 0.0276,
+      "p95Ms": 0.0446,
+      "maximumMs": 0.0543
+    },
+    {
+      "role": "financial-ratios.schema-validation",
+      "medianMs": 0.0202,
+      "p95Ms": 0.0339,
+      "maximumMs": 0.036
+    },
+    {
+      "role": "financial-ratios.source-validation",
+      "medianMs": 0.0214,
+      "p95Ms": 0.0346,
+      "maximumMs": 0.0384
+    },
+    {
+      "role": "financial-ratios.availability-validation",
+      "medianMs": 0.026,
+      "p95Ms": 0.0399,
+      "maximumMs": 0.0419
+    },
+    {
+      "role": "financial-ratios.completeness",
+      "medianMs": 0.0225,
+      "p95Ms": 0.0267,
+      "maximumMs": 0.0367
+    },
+    {
+      "role": "financial-ratios.duplicate-revision-handling",
+      "medianMs": 0.0205,
+      "p95Ms": 0.0346,
+      "maximumMs": 0.0355
+    },
+    {
+      "role": "financial-ratios.feature-calculation",
+      "medianMs": 0.0222,
+      "p95Ms": 0.03,
+      "maximumMs": 0.0353
+    },
+    {
+      "role": "financial-ratios.analysis",
+      "medianMs": 0.0332,
+      "p95Ms": 0.0373,
+      "maximumMs": 0.0384
+    },
+    {
+      "role": "financial-ratios.anomaly-detection",
+      "medianMs": 0.0208,
+      "p95Ms": 0.0282,
+      "maximumMs": 0.0322
+    },
+    {
+      "role": "financial-ratios.evidence-preparation",
+      "medianMs": 0.0263,
+      "p95Ms": 0.0294,
+      "maximumMs": 0.0376
+    },
+    {
+      "role": "financial-ratios.scenario-testing",
+      "medianMs": 0.0348,
+      "p95Ms": 0.1054,
+      "maximumMs": 0.1109
+    },
+    {
+      "role": "financial-ratios.baseline-comparison",
+      "medianMs": 0.0535,
+      "p95Ms": 0.1512,
+      "maximumMs": 0.1797
+    },
+    {
+      "role": "financial-ratios.independent-review",
+      "medianMs": 0.0908,
+      "p95Ms": 0.1751,
+      "maximumMs": 0.1806
+    },
+    {
+      "role": "financial-ratios.monitoring",
+      "medianMs": 0.0239,
+      "p95Ms": 0.0257,
+      "maximumMs": 0.0265
+    },
+    {
+      "role": "financial-ratios.reporting",
+      "medianMs": 0.0227,
+      "p95Ms": 0.0241,
+      "maximumMs": 0.0261
+    },
+    {
+      "role": "valuation-assumptions.intake",
+      "medianMs": 0.0213,
+      "p95Ms": 0.0233,
+      "maximumMs": 0.0245
+    },
+    {
+      "role": "valuation-assumptions.normalization",
+      "medianMs": 0.0266,
+      "p95Ms": 0.0289,
+      "maximumMs": 0.0386
+    },
+    {
+      "role": "valuation-assumptions.schema-validation",
+      "medianMs": 0.0211,
+      "p95Ms": 0.022,
+      "maximumMs": 0.0226
+    },
+    {
+      "role": "valuation-assumptions.source-validation",
+      "medianMs": 0.0222,
+      "p95Ms": 0.0227,
+      "maximumMs": 0.0442
+    },
+    {
+      "role": "valuation-assumptions.availability-validation",
+      "medianMs": 0.0271,
+      "p95Ms": 0.0277,
+      "maximumMs": 0.0292
+    },
+    {
+      "role": "valuation-assumptions.completeness",
+      "medianMs": 0.0238,
+      "p95Ms": 0.0298,
+      "maximumMs": 0.0401
+    },
+    {
+      "role": "valuation-assumptions.duplicate-revision-handling",
+      "medianMs": 0.0212,
+      "p95Ms": 0.0222,
+      "maximumMs": 0.0227
+    },
+    {
+      "role": "valuation-assumptions.feature-calculation",
+      "medianMs": 0.0232,
+      "p95Ms": 0.0251,
+      "maximumMs": 0.0376
+    },
+    {
+      "role": "valuation-assumptions.analysis",
+      "medianMs": 0.0384,
+      "p95Ms": 0.04,
+      "maximumMs": 0.0425
+    },
+    {
+      "role": "valuation-assumptions.anomaly-detection",
+      "medianMs": 0.0239,
+      "p95Ms": 0.027,
+      "maximumMs": 0.0319
+    },
+    {
+      "role": "valuation-assumptions.evidence-preparation",
+      "medianMs": 0.0305,
+      "p95Ms": 0.0319,
+      "maximumMs": 0.0359
+    },
+    {
+      "role": "valuation-assumptions.scenario-testing",
+      "medianMs": 0.0394,
+      "p95Ms": 0.0767,
+      "maximumMs": 0.1189
+    },
+    {
+      "role": "valuation-assumptions.baseline-comparison",
+      "medianMs": 0.0541,
+      "p95Ms": 0.0575,
+      "maximumMs": 0.0706
+    },
+    {
+      "role": "valuation-assumptions.independent-review",
+      "medianMs": 0.1237,
+      "p95Ms": 0.2603,
+      "maximumMs": 0.3081
+    },
+    {
+      "role": "valuation-assumptions.monitoring",
+      "medianMs": 0.0265,
+      "p95Ms": 0.0331,
+      "maximumMs": 0.0415
+    },
+    {
+      "role": "valuation-assumptions.reporting",
+      "medianMs": 0.0251,
+      "p95Ms": 0.0258,
+      "maximumMs": 0.0265
+    },
+    {
+      "role": "governance-evidence.intake",
+      "medianMs": 0.0237,
+      "p95Ms": 0.025,
+      "maximumMs": 0.0262
+    },
+    {
+      "role": "governance-evidence.normalization",
+      "medianMs": 0.0349,
+      "p95Ms": 0.0543,
+      "maximumMs": 0.0557
+    },
+    {
+      "role": "governance-evidence.schema-validation",
+      "medianMs": 0.0224,
+      "p95Ms": 0.0342,
+      "maximumMs": 0.0416
+    },
+    {
+      "role": "governance-evidence.source-validation",
+      "medianMs": 0.0232,
+      "p95Ms": 0.0243,
+      "maximumMs": 0.0307
+    },
+    {
+      "role": "governance-evidence.availability-validation",
+      "medianMs": 0.0287,
+      "p95Ms": 0.0434,
+      "maximumMs": 0.0463
+    },
+    {
+      "role": "governance-evidence.completeness",
+      "medianMs": 0.0245,
+      "p95Ms": 0.0286,
+      "maximumMs": 0.0398
+    },
+    {
+      "role": "governance-evidence.duplicate-revision-handling",
+      "medianMs": 0.0227,
+      "p95Ms": 0.0241,
+      "maximumMs": 0.0328
+    },
+    {
+      "role": "governance-evidence.feature-calculation",
+      "medianMs": 0.025,
+      "p95Ms": 0.0258,
+      "maximumMs": 0.0275
+    },
+    {
+      "role": "governance-evidence.analysis",
+      "medianMs": 0.0246,
+      "p95Ms": 0.0262,
+      "maximumMs": 0.0273
+    },
+    {
+      "role": "governance-evidence.anomaly-detection",
+      "medianMs": 0.0251,
+      "p95Ms": 0.0352,
+      "maximumMs": 0.0399
+    },
+    {
+      "role": "governance-evidence.evidence-preparation",
+      "medianMs": 0.032,
+      "p95Ms": 0.0331,
+      "maximumMs": 0.034
+    },
+    {
+      "role": "governance-evidence.scenario-testing",
+      "medianMs": 0.0405,
+      "p95Ms": 0.0694,
+      "maximumMs": 0.2138
+    },
+    {
+      "role": "governance-evidence.baseline-comparison",
+      "medianMs": 0.0579,
+      "p95Ms": 0.0642,
+      "maximumMs": 0.0773
+    },
+    {
+      "role": "governance-evidence.independent-review",
+      "medianMs": 0.1134,
+      "p95Ms": 0.3516,
+      "maximumMs": 0.8945
+    },
+    {
+      "role": "governance-evidence.monitoring",
+      "medianMs": 0.0245,
+      "p95Ms": 0.0368,
+      "maximumMs": 0.049
+    },
+    {
+      "role": "governance-evidence.reporting",
+      "medianMs": 0.0226,
+      "p95Ms": 0.0242,
+      "maximumMs": 0.0403
+    },
+    {
+      "role": "sector-classification.intake",
+      "medianMs": 0.0227,
+      "p95Ms": 0.0242,
+      "maximumMs": 0.0331
+    },
+    {
+      "role": "sector-classification.normalization",
+      "medianMs": 0.0296,
+      "p95Ms": 0.0458,
+      "maximumMs": 0.0476
+    },
+    {
+      "role": "sector-classification.schema-validation",
+      "medianMs": 0.0209,
+      "p95Ms": 0.0275,
+      "maximumMs": 0.0296
+    },
+    {
+      "role": "sector-classification.source-validation",
+      "medianMs": 0.0213,
+      "p95Ms": 0.0222,
+      "maximumMs": 0.0226
+    },
+    {
+      "role": "sector-classification.availability-validation",
+      "medianMs": 0.0264,
+      "p95Ms": 0.0356,
+      "maximumMs": 0.038
+    },
+    {
+      "role": "sector-classification.completeness",
+      "medianMs": 0.023,
+      "p95Ms": 0.0284,
+      "maximumMs": 0.0371
+    },
+    {
+      "role": "sector-classification.duplicate-revision-handling",
+      "medianMs": 0.021,
+      "p95Ms": 0.022,
+      "maximumMs": 0.0223
+    },
+    {
+      "role": "sector-classification.feature-calculation",
+      "medianMs": 0.024,
+      "p95Ms": 0.0378,
+      "maximumMs": 0.0379
+    },
+    {
+      "role": "sector-classification.analysis",
+      "medianMs": 0.0216,
+      "p95Ms": 0.0231,
+      "maximumMs": 0.0259
+    },
+    {
+      "role": "sector-classification.anomaly-detection",
+      "medianMs": 0.0218,
+      "p95Ms": 0.0359,
+      "maximumMs": 0.037
+    },
+    {
+      "role": "sector-classification.evidence-preparation",
+      "medianMs": 0.0282,
+      "p95Ms": 0.0298,
+      "maximumMs": 0.0422
+    },
+    {
+      "role": "sector-classification.scenario-testing",
+      "medianMs": 0.0347,
+      "p95Ms": 0.0496,
+      "maximumMs": 0.1407
+    },
+    {
+      "role": "sector-classification.baseline-comparison",
+      "medianMs": 0.0496,
+      "p95Ms": 0.0501,
+      "maximumMs": 0.065
+    },
+    {
+      "role": "sector-classification.independent-review",
+      "medianMs": 0.0596,
+      "p95Ms": 0.0745,
+      "maximumMs": 0.0759
+    },
+    {
+      "role": "sector-classification.monitoring",
+      "medianMs": 0.0234,
+      "p95Ms": 0.0374,
+      "maximumMs": 0.038
+    },
+    {
+      "role": "sector-classification.reporting",
+      "medianMs": 0.0477,
+      "p95Ms": 0.1691,
+      "maximumMs": 0.2353
+    },
+    {
+      "role": "benchmark-data.intake",
+      "medianMs": 0.0352,
+      "p95Ms": 0.0474,
+      "maximumMs": 0.0526
+    },
+    {
+      "role": "benchmark-data.normalization",
+      "medianMs": 0.0285,
+      "p95Ms": 0.0516,
+      "maximumMs": 0.0537
+    },
+    {
+      "role": "benchmark-data.schema-validation",
+      "medianMs": 0.0218,
+      "p95Ms": 0.0231,
+      "maximumMs": 0.0251
+    },
+    {
+      "role": "benchmark-data.source-validation",
+      "medianMs": 0.0227,
+      "p95Ms": 0.024,
+      "maximumMs": 0.0277
+    },
+    {
+      "role": "benchmark-data.availability-validation",
+      "medianMs": 0.0277,
+      "p95Ms": 0.029,
+      "maximumMs": 0.0298
+    },
+    {
+      "role": "benchmark-data.completeness",
+      "medianMs": 0.0236,
+      "p95Ms": 0.0254,
+      "maximumMs": 0.0267
+    },
+    {
+      "role": "benchmark-data.duplicate-revision-handling",
+      "medianMs": 0.0218,
+      "p95Ms": 0.0226,
+      "maximumMs": 0.0367
+    },
+    {
+      "role": "benchmark-data.feature-calculation",
+      "medianMs": 0.0264,
+      "p95Ms": 0.0285,
+      "maximumMs": 0.0299
+    },
+    {
+      "role": "benchmark-data.analysis",
+      "medianMs": 0.0394,
+      "p95Ms": 0.042,
+      "maximumMs": 0.0452
+    },
+    {
+      "role": "benchmark-data.anomaly-detection",
+      "medianMs": 0.0243,
+      "p95Ms": 0.0276,
+      "maximumMs": 0.056
+    },
+    {
+      "role": "benchmark-data.evidence-preparation",
+      "medianMs": 0.0307,
+      "p95Ms": 0.0323,
+      "maximumMs": 0.0394
+    },
+    {
+      "role": "benchmark-data.scenario-testing",
+      "medianMs": 0.0431,
+      "p95Ms": 0.0771,
+      "maximumMs": 0.0958
+    },
+    {
+      "role": "benchmark-data.baseline-comparison",
+      "medianMs": 0.0538,
+      "p95Ms": 0.0654,
+      "maximumMs": 0.0678
+    },
+    {
+      "role": "benchmark-data.independent-review",
+      "medianMs": 0.0878,
+      "p95Ms": 0.0938,
+      "maximumMs": 0.0982
+    },
+    {
+      "role": "benchmark-data.monitoring",
+      "medianMs": 0.0249,
+      "p95Ms": 0.0279,
+      "maximumMs": 0.0325
+    },
+    {
+      "role": "benchmark-data.reporting",
+      "medianMs": 0.0234,
+      "p95Ms": 0.0478,
+      "maximumMs": 0.164
+    },
+    {
+      "role": "technical-indicators.intake",
+      "medianMs": 0.0629,
+      "p95Ms": 0.1702,
+      "maximumMs": 0.2507
+    },
+    {
+      "role": "technical-indicators.normalization",
+      "medianMs": 0.0335,
+      "p95Ms": 0.0978,
+      "maximumMs": 0.1476
+    },
+    {
+      "role": "technical-indicators.schema-validation",
+      "medianMs": 0.025,
+      "p95Ms": 0.0276,
+      "maximumMs": 0.0325
+    },
+    {
+      "role": "technical-indicators.source-validation",
+      "medianMs": 0.0261,
+      "p95Ms": 0.074,
+      "maximumMs": 0.1291
+    },
+    {
+      "role": "technical-indicators.availability-validation",
+      "medianMs": 0.0291,
+      "p95Ms": 0.0388,
+      "maximumMs": 0.0956
+    },
+    {
+      "role": "technical-indicators.completeness",
+      "medianMs": 0.0252,
+      "p95Ms": 0.089,
+      "maximumMs": 0.1004
+    },
+    {
+      "role": "technical-indicators.duplicate-revision-handling",
+      "medianMs": 0.0228,
+      "p95Ms": 0.0283,
+      "maximumMs": 0.0651
+    },
+    {
+      "role": "technical-indicators.feature-calculation",
+      "medianMs": 0.0249,
+      "p95Ms": 0.0352,
+      "maximumMs": 0.0684
+    },
+    {
+      "role": "technical-indicators.analysis",
+      "medianMs": 0.0475,
+      "p95Ms": 0.0642,
+      "maximumMs": 0.0866
+    },
+    {
+      "role": "technical-indicators.anomaly-detection",
+      "medianMs": 0.0247,
+      "p95Ms": 0.0546,
+      "maximumMs": 0.2072
+    },
+    {
+      "role": "technical-indicators.evidence-preparation",
+      "medianMs": 0.0299,
+      "p95Ms": 0.0318,
+      "maximumMs": 0.0358
+    },
+    {
+      "role": "technical-indicators.scenario-testing",
+      "medianMs": 0.0407,
+      "p95Ms": 0.055,
+      "maximumMs": 0.055
+    },
+    {
+      "role": "technical-indicators.baseline-comparison",
+      "medianMs": 0.0569,
+      "p95Ms": 0.0662,
+      "maximumMs": 0.0705
+    },
+    {
+      "role": "technical-indicators.independent-review",
+      "medianMs": 0.105,
+      "p95Ms": 0.3529,
+      "maximumMs": 0.3906
+    },
+    {
+      "role": "technical-indicators.monitoring",
+      "medianMs": 0.0277,
+      "p95Ms": 0.0289,
+      "maximumMs": 0.0308
+    },
+    {
+      "role": "technical-indicators.reporting",
+      "medianMs": 0.0268,
+      "p95Ms": 0.0556,
+      "maximumMs": 0.0838
+    },
+    {
+      "role": "momentum-relative-strength.intake",
+      "medianMs": 0.0235,
+      "p95Ms": 0.0262,
+      "maximumMs": 0.0272
+    },
+    {
+      "role": "momentum-relative-strength.normalization",
+      "medianMs": 0.0303,
+      "p95Ms": 0.0389,
+      "maximumMs": 0.0398
+    },
+    {
+      "role": "momentum-relative-strength.schema-validation",
+      "medianMs": 0.0234,
+      "p95Ms": 0.0246,
+      "maximumMs": 0.0255
+    },
+    {
+      "role": "momentum-relative-strength.source-validation",
+      "medianMs": 0.0244,
+      "p95Ms": 0.0275,
+      "maximumMs": 0.0647
+    },
+    {
+      "role": "momentum-relative-strength.availability-validation",
+      "medianMs": 0.0296,
+      "p95Ms": 0.0315,
+      "maximumMs": 0.0385
+    },
+    {
+      "role": "momentum-relative-strength.completeness",
+      "medianMs": 0.026,
+      "p95Ms": 0.0271,
+      "maximumMs": 0.0276
+    },
+    {
+      "role": "momentum-relative-strength.duplicate-revision-handling",
+      "medianMs": 0.0234,
+      "p95Ms": 0.0242,
+      "maximumMs": 0.0247
+    },
+    {
+      "role": "momentum-relative-strength.feature-calculation",
+      "medianMs": 0.0255,
+      "p95Ms": 0.0342,
+      "maximumMs": 0.0391
+    },
+    {
+      "role": "momentum-relative-strength.analysis",
+      "medianMs": 0.0499,
+      "p95Ms": 0.0533,
+      "maximumMs": 0.0551
+    },
+    {
+      "role": "momentum-relative-strength.anomaly-detection",
+      "medianMs": 0.0256,
+      "p95Ms": 0.0296,
+      "maximumMs": 0.0386
+    },
+    {
+      "role": "momentum-relative-strength.evidence-preparation",
+      "medianMs": 0.0331,
+      "p95Ms": 0.0351,
+      "maximumMs": 0.0474
+    },
+    {
+      "role": "momentum-relative-strength.scenario-testing",
+      "medianMs": 0.0446,
+      "p95Ms": 0.0479,
+      "maximumMs": 0.0538
+    },
+    {
+      "role": "momentum-relative-strength.baseline-comparison",
+      "medianMs": 0.0592,
+      "p95Ms": 0.0636,
+      "maximumMs": 0.0734
+    },
+    {
+      "role": "momentum-relative-strength.independent-review",
+      "medianMs": 0.1345,
+      "p95Ms": 0.3542,
+      "maximumMs": 0.3929
+    },
+    {
+      "role": "momentum-relative-strength.monitoring",
+      "medianMs": 0.0272,
+      "p95Ms": 0.0604,
+      "maximumMs": 0.0631
+    },
+    {
+      "role": "momentum-relative-strength.reporting",
+      "medianMs": 0.0251,
+      "p95Ms": 0.0272,
+      "maximumMs": 0.0429
+    },
+    {
+      "role": "market-regimes.intake",
+      "medianMs": 0.023,
+      "p95Ms": 0.0241,
+      "maximumMs": 0.0241
+    },
+    {
+      "role": "market-regimes.normalization",
+      "medianMs": 0.0276,
+      "p95Ms": 0.0359,
+      "maximumMs": 0.0465
+    },
+    {
+      "role": "market-regimes.schema-validation",
+      "medianMs": 0.0211,
+      "p95Ms": 0.0225,
+      "maximumMs": 0.0228
+    },
+    {
+      "role": "market-regimes.source-validation",
+      "medianMs": 0.0217,
+      "p95Ms": 0.023,
+      "maximumMs": 0.0232
+    },
+    {
+      "role": "market-regimes.availability-validation",
+      "medianMs": 0.0271,
+      "p95Ms": 0.076,
+      "maximumMs": 0.0837
+    },
+    {
+      "role": "market-regimes.completeness",
+      "medianMs": 0.0355,
+      "p95Ms": 0.0512,
+      "maximumMs": 0.0557
+    },
+    {
+      "role": "market-regimes.duplicate-revision-handling",
+      "medianMs": 0.0218,
+      "p95Ms": 0.039,
+      "maximumMs": 0.0392
+    },
+    {
+      "role": "market-regimes.feature-calculation",
+      "medianMs": 0.0239,
+      "p95Ms": 0.0266,
+      "maximumMs": 0.0323
+    },
+    {
+      "role": "market-regimes.analysis",
+      "medianMs": 0.0227,
+      "p95Ms": 0.0235,
+      "maximumMs": 0.0246
+    },
+    {
+      "role": "market-regimes.anomaly-detection",
+      "medianMs": 0.0227,
+      "p95Ms": 0.0244,
+      "maximumMs": 0.0337
+    },
+    {
+      "role": "market-regimes.evidence-preparation",
+      "medianMs": 0.0292,
+      "p95Ms": 0.0313,
+      "maximumMs": 0.043
+    },
+    {
+      "role": "market-regimes.scenario-testing",
+      "medianMs": 0.0357,
+      "p95Ms": 0.0384,
+      "maximumMs": 0.0396
+    },
+    {
+      "role": "market-regimes.baseline-comparison",
+      "medianMs": 0.0489,
+      "p95Ms": 0.0594,
+      "maximumMs": 0.0617
+    },
+    {
+      "role": "market-regimes.independent-review",
+      "medianMs": 0.0541,
+      "p95Ms": 0.0586,
+      "maximumMs": 0.0684
+    },
+    {
+      "role": "market-regimes.monitoring",
+      "medianMs": 0.0407,
+      "p95Ms": 0.0807,
+      "maximumMs": 0.2691
+    },
+    {
+      "role": "market-regimes.reporting",
+      "medianMs": 0.0233,
+      "p95Ms": 0.0487,
+      "maximumMs": 0.0698
+    },
+    {
+      "role": "liquidity-spreads.intake",
+      "medianMs": 0.0224,
+      "p95Ms": 0.0389,
+      "maximumMs": 0.0418
+    },
+    {
+      "role": "liquidity-spreads.normalization",
+      "medianMs": 0.0287,
+      "p95Ms": 0.0436,
+      "maximumMs": 0.0544
+    },
+    {
+      "role": "liquidity-spreads.schema-validation",
+      "medianMs": 0.0226,
+      "p95Ms": 0.0242,
+      "maximumMs": 0.0254
+    },
+    {
+      "role": "liquidity-spreads.source-validation",
+      "medianMs": 0.0226,
+      "p95Ms": 0.0256,
+      "maximumMs": 0.0403
+    },
+    {
+      "role": "liquidity-spreads.availability-validation",
+      "medianMs": 0.0259,
+      "p95Ms": 0.0351,
+      "maximumMs": 0.0384
+    },
+    {
+      "role": "liquidity-spreads.completeness",
+      "medianMs": 0.0224,
+      "p95Ms": 0.0238,
+      "maximumMs": 0.024
+    },
+    {
+      "role": "liquidity-spreads.duplicate-revision-handling",
+      "medianMs": 0.0209,
+      "p95Ms": 0.0869,
+      "maximumMs": 0.1085
+    },
+    {
+      "role": "liquidity-spreads.feature-calculation",
+      "medianMs": 0.023,
+      "p95Ms": 0.025,
+      "maximumMs": 0.0303
+    },
+    {
+      "role": "liquidity-spreads.analysis",
+      "medianMs": 0.0494,
+      "p95Ms": 0.0557,
+      "maximumMs": 0.062
+    },
+    {
+      "role": "liquidity-spreads.anomaly-detection",
+      "medianMs": 0.0233,
+      "p95Ms": 0.0276,
+      "maximumMs": 0.0369
+    },
+    {
+      "role": "liquidity-spreads.evidence-preparation",
+      "medianMs": 0.0278,
+      "p95Ms": 0.0292,
+      "maximumMs": 0.0361
+    },
+    {
+      "role": "liquidity-spreads.scenario-testing",
+      "medianMs": 0.0377,
+      "p95Ms": 0.0401,
+      "maximumMs": 0.0419
+    },
+    {
+      "role": "liquidity-spreads.baseline-comparison",
+      "medianMs": 0.0487,
+      "p95Ms": 0.0513,
+      "maximumMs": 0.0567
+    },
+    {
+      "role": "liquidity-spreads.independent-review",
+      "medianMs": 0.1029,
+      "p95Ms": 0.108,
+      "maximumMs": 0.1246
+    },
+    {
+      "role": "liquidity-spreads.monitoring",
+      "medianMs": 0.0242,
+      "p95Ms": 0.0485,
+      "maximumMs": 0.1354
+    },
+    {
+      "role": "liquidity-spreads.reporting",
+      "medianMs": 0.0476,
+      "p95Ms": 0.0969,
+      "maximumMs": 0.1804
+    },
+    {
+      "role": "transaction-costs.intake",
+      "medianMs": 0.0385,
+      "p95Ms": 0.061,
+      "maximumMs": 0.0638
+    },
+    {
+      "role": "transaction-costs.normalization",
+      "medianMs": 0.0271,
+      "p95Ms": 0.175,
+      "maximumMs": 1.1076
+    },
+    {
+      "role": "transaction-costs.schema-validation",
+      "medianMs": 0.0224,
+      "p95Ms": 0.104,
+      "maximumMs": 0.3013
+    },
+    {
+      "role": "transaction-costs.source-validation",
+      "medianMs": 0.0209,
+      "p95Ms": 0.0218,
+      "maximumMs": 0.0359
+    },
+    {
+      "role": "transaction-costs.availability-validation",
+      "medianMs": 0.0257,
+      "p95Ms": 0.032,
+      "maximumMs": 0.0345
+    },
+    {
+      "role": "transaction-costs.completeness",
+      "medianMs": 0.0223,
+      "p95Ms": 0.0236,
+      "maximumMs": 0.0252
+    },
+    {
+      "role": "transaction-costs.duplicate-revision-handling",
+      "medianMs": 0.0207,
+      "p95Ms": 0.0214,
+      "maximumMs": 0.035
+    },
+    {
+      "role": "transaction-costs.feature-calculation",
+      "medianMs": 0.0234,
+      "p95Ms": 0.0323,
+      "maximumMs": 0.0397
+    },
+    {
+      "role": "transaction-costs.analysis",
+      "medianMs": 0.0498,
+      "p95Ms": 0.0619,
+      "maximumMs": 0.0656
+    },
+    {
+      "role": "transaction-costs.anomaly-detection",
+      "medianMs": 0.0229,
+      "p95Ms": 0.0257,
+      "maximumMs": 0.0267
+    },
+    {
+      "role": "transaction-costs.evidence-preparation",
+      "medianMs": 0.0294,
+      "p95Ms": 0.0309,
+      "maximumMs": 0.0374
+    },
+    {
+      "role": "transaction-costs.scenario-testing",
+      "medianMs": 0.0397,
+      "p95Ms": 0.0421,
+      "maximumMs": 0.044
+    },
+    {
+      "role": "transaction-costs.baseline-comparison",
+      "medianMs": 0.0519,
+      "p95Ms": 0.0605,
+      "maximumMs": 0.0744
+    },
+    {
+      "role": "transaction-costs.independent-review",
+      "medianMs": 0.1225,
+      "p95Ms": 0.523,
+      "maximumMs": 0.5712
+    },
+    {
+      "role": "transaction-costs.monitoring",
+      "medianMs": 0.0242,
+      "p95Ms": 0.0515,
+      "maximumMs": 0.1198
+    },
+    {
+      "role": "transaction-costs.reporting",
+      "medianMs": 0.0216,
+      "p95Ms": 0.0229,
+      "maximumMs": 0.0907
+    },
+    {
+      "role": "position-sizing.intake",
+      "medianMs": 0.0354,
+      "p95Ms": 0.1062,
+      "maximumMs": 0.1476
+    },
+    {
+      "role": "position-sizing.normalization",
+      "medianMs": 0.026,
+      "p95Ms": 0.0271,
+      "maximumMs": 0.0283
+    },
+    {
+      "role": "position-sizing.schema-validation",
+      "medianMs": 0.0215,
+      "p95Ms": 0.0339,
+      "maximumMs": 0.038
+    },
+    {
+      "role": "position-sizing.source-validation",
+      "medianMs": 0.0224,
+      "p95Ms": 0.0229,
+      "maximumMs": 0.0241
+    },
+    {
+      "role": "position-sizing.availability-validation",
+      "medianMs": 0.0273,
+      "p95Ms": 0.028,
+      "maximumMs": 0.029
+    },
+    {
+      "role": "position-sizing.completeness",
+      "medianMs": 0.0242,
+      "p95Ms": 0.0325,
+      "maximumMs": 0.0386
+    },
+    {
+      "role": "position-sizing.duplicate-revision-handling",
+      "medianMs": 0.0218,
+      "p95Ms": 0.0226,
+      "maximumMs": 0.0232
+    },
+    {
+      "role": "position-sizing.feature-calculation",
+      "medianMs": 0.0246,
+      "p95Ms": 0.0256,
+      "maximumMs": 0.027
+    },
+    {
+      "role": "position-sizing.analysis",
+      "medianMs": 0.0535,
+      "p95Ms": 0.0557,
+      "maximumMs": 0.0758
+    },
+    {
+      "role": "position-sizing.anomaly-detection",
+      "medianMs": 0.0247,
+      "p95Ms": 0.0268,
+      "maximumMs": 0.0288
+    },
+    {
+      "role": "position-sizing.evidence-preparation",
+      "medianMs": 0.0311,
+      "p95Ms": 0.0326,
+      "maximumMs": 0.0411
+    },
+    {
+      "role": "position-sizing.scenario-testing",
+      "medianMs": 0.0441,
+      "p95Ms": 0.0566,
+      "maximumMs": 0.0741
+    },
+    {
+      "role": "position-sizing.baseline-comparison",
+      "medianMs": 0.0578,
+      "p95Ms": 0.0708,
+      "maximumMs": 0.0923
+    },
+    {
+      "role": "position-sizing.independent-review",
+      "medianMs": 0.2044,
+      "p95Ms": 0.3242,
+      "maximumMs": 0.566
+    },
+    {
+      "role": "position-sizing.monitoring",
+      "medianMs": 0.0264,
+      "p95Ms": 0.0414,
+      "maximumMs": 0.0434
+    },
+    {
+      "role": "position-sizing.reporting",
+      "medianMs": 0.024,
+      "p95Ms": 0.0305,
+      "maximumMs": 0.0492
+    },
+    {
+      "role": "trade-risk.intake",
+      "medianMs": 0.023,
+      "p95Ms": 0.0352,
+      "maximumMs": 0.037
+    },
+    {
+      "role": "trade-risk.normalization",
+      "medianMs": 0.0281,
+      "p95Ms": 0.0301,
+      "maximumMs": 0.0391
+    },
+    {
+      "role": "trade-risk.schema-validation",
+      "medianMs": 0.0218,
+      "p95Ms": 0.0239,
+      "maximumMs": 0.0396
+    },
+    {
+      "role": "trade-risk.source-validation",
+      "medianMs": 0.0224,
+      "p95Ms": 0.023,
+      "maximumMs": 0.0235
+    },
+    {
+      "role": "trade-risk.availability-validation",
+      "medianMs": 0.0268,
+      "p95Ms": 0.0294,
+      "maximumMs": 0.0341
+    },
+    {
+      "role": "trade-risk.completeness",
+      "medianMs": 0.0235,
+      "p95Ms": 0.025,
+      "maximumMs": 0.0294
+    },
+    {
+      "role": "trade-risk.duplicate-revision-handling",
+      "medianMs": 0.0213,
+      "p95Ms": 0.0218,
+      "maximumMs": 0.0223
+    },
+    {
+      "role": "trade-risk.feature-calculation",
+      "medianMs": 0.0236,
+      "p95Ms": 0.0253,
+      "maximumMs": 0.0308
+    },
+    {
+      "role": "trade-risk.analysis",
+      "medianMs": 0.0587,
+      "p95Ms": 0.0715,
+      "maximumMs": 0.0859
+    },
+    {
+      "role": "trade-risk.anomaly-detection",
+      "medianMs": 0.0245,
+      "p95Ms": 0.0276,
+      "maximumMs": 0.0363
+    },
+    {
+      "role": "trade-risk.evidence-preparation",
+      "medianMs": 0.0307,
+      "p95Ms": 0.0318,
+      "maximumMs": 0.0324
+    },
+    {
+      "role": "trade-risk.scenario-testing",
+      "medianMs": 0.0412,
+      "p95Ms": 0.0484,
+      "maximumMs": 0.0568
+    },
+    {
+      "role": "trade-risk.baseline-comparison",
+      "medianMs": 0.0917,
+      "p95Ms": 0.166,
+      "maximumMs": 0.1843
+    },
+    {
+      "role": "trade-risk.independent-review",
+      "medianMs": 0.1306,
+      "p95Ms": 0.2744,
+      "maximumMs": 0.4016
+    },
+    {
+      "role": "trade-risk.monitoring",
+      "medianMs": 0.0232,
+      "p95Ms": 0.0344,
+      "maximumMs": 0.0387
+    },
+    {
+      "role": "trade-risk.reporting",
+      "medianMs": 0.0212,
+      "p95Ms": 0.0335,
+      "maximumMs": 0.0352
+    },
+    {
+      "role": "portfolio-exposure.intake",
+      "medianMs": 0.0192,
+      "p95Ms": 0.0208,
+      "maximumMs": 0.022
+    },
+    {
+      "role": "portfolio-exposure.normalization",
+      "medianMs": 0.0241,
+      "p95Ms": 0.0267,
+      "maximumMs": 0.0313
+    },
+    {
+      "role": "portfolio-exposure.schema-validation",
+      "medianMs": 0.0187,
+      "p95Ms": 0.0274,
+      "maximumMs": 0.0303
+    },
+    {
+      "role": "portfolio-exposure.source-validation",
+      "medianMs": 0.0198,
+      "p95Ms": 0.0206,
+      "maximumMs": 0.0217
+    },
+    {
+      "role": "portfolio-exposure.availability-validation",
+      "medianMs": 0.0244,
+      "p95Ms": 0.0384,
+      "maximumMs": 0.0472
+    },
+    {
+      "role": "portfolio-exposure.completeness",
+      "medianMs": 0.0207,
+      "p95Ms": 0.022,
+      "maximumMs": 0.0223
+    },
+    {
+      "role": "portfolio-exposure.duplicate-revision-handling",
+      "medianMs": 0.0185,
+      "p95Ms": 0.0204,
+      "maximumMs": 0.0279
+    },
+    {
+      "role": "portfolio-exposure.feature-calculation",
+      "medianMs": 0.0208,
+      "p95Ms": 0.0227,
+      "maximumMs": 0.0236
+    },
+    {
+      "role": "portfolio-exposure.analysis",
+      "medianMs": 0.0377,
+      "p95Ms": 0.0444,
+      "maximumMs": 0.0543
+    },
+    {
+      "role": "portfolio-exposure.anomaly-detection",
+      "medianMs": 0.0193,
+      "p95Ms": 0.0208,
+      "maximumMs": 0.0221
+    },
+    {
+      "role": "portfolio-exposure.evidence-preparation",
+      "medianMs": 0.0244,
+      "p95Ms": 0.0253,
+      "maximumMs": 0.0255
+    },
+    {
+      "role": "portfolio-exposure.scenario-testing",
+      "medianMs": 0.0338,
+      "p95Ms": 0.0375,
+      "maximumMs": 0.0473
+    },
+    {
+      "role": "portfolio-exposure.baseline-comparison",
+      "medianMs": 0.0435,
+      "p95Ms": 0.052,
+      "maximumMs": 0.0575
+    },
+    {
+      "role": "portfolio-exposure.independent-review",
+      "medianMs": 0.1064,
+      "p95Ms": 0.1895,
+      "maximumMs": 0.843
+    },
+    {
+      "role": "portfolio-exposure.monitoring",
+      "medianMs": 0.0211,
+      "p95Ms": 0.0237,
+      "maximumMs": 0.032
+    },
+    {
+      "role": "portfolio-exposure.reporting",
+      "medianMs": 0.02,
+      "p95Ms": 0.0214,
+      "maximumMs": 0.0359
+    },
+    {
+      "role": "backtest-execution.intake",
+      "medianMs": 0.0198,
+      "p95Ms": 0.0271,
+      "maximumMs": 0.033
+    },
+    {
+      "role": "backtest-execution.normalization",
+      "medianMs": 0.0224,
+      "p95Ms": 0.0331,
+      "maximumMs": 0.0371
+    },
+    {
+      "role": "backtest-execution.schema-validation",
+      "medianMs": 0.0174,
+      "p95Ms": 0.0188,
+      "maximumMs": 0.0316
+    },
+    {
+      "role": "backtest-execution.source-validation",
+      "medianMs": 0.0189,
+      "p95Ms": 0.0196,
+      "maximumMs": 0.0198
+    },
+    {
+      "role": "backtest-execution.availability-validation",
+      "medianMs": 0.023,
+      "p95Ms": 0.0238,
+      "maximumMs": 0.0242
+    },
+    {
+      "role": "backtest-execution.completeness",
+      "medianMs": 0.0198,
+      "p95Ms": 0.0278,
+      "maximumMs": 0.028
+    },
+    {
+      "role": "backtest-execution.duplicate-revision-handling",
+      "medianMs": 0.018,
+      "p95Ms": 0.0187,
+      "maximumMs": 0.0192
+    },
+    {
+      "role": "backtest-execution.feature-calculation",
+      "medianMs": 0.0196,
+      "p95Ms": 0.0243,
+      "maximumMs": 0.0435
+    },
+    {
+      "role": "backtest-execution.analysis",
+      "medianMs": 0.0384,
+      "p95Ms": 0.0427,
+      "maximumMs": 0.0505
+    },
+    {
+      "role": "backtest-execution.anomaly-detection",
+      "medianMs": 0.0199,
+      "p95Ms": 0.0227,
+      "maximumMs": 0.0338
+    },
+    {
+      "role": "backtest-execution.evidence-preparation",
+      "medianMs": 0.0255,
+      "p95Ms": 0.026,
+      "maximumMs": 0.0264
+    },
+    {
+      "role": "backtest-execution.scenario-testing",
+      "medianMs": 0.0342,
+      "p95Ms": 0.0375,
+      "maximumMs": 0.0413
+    },
+    {
+      "role": "backtest-execution.baseline-comparison",
+      "medianMs": 0.0448,
+      "p95Ms": 0.0466,
+      "maximumMs": 0.0595
+    },
+    {
+      "role": "backtest-execution.independent-review",
+      "medianMs": 0.0852,
+      "p95Ms": 0.0976,
+      "maximumMs": 0.1
+    },
+    {
+      "role": "backtest-execution.monitoring",
+      "medianMs": 0.022,
+      "p95Ms": 0.0486,
+      "maximumMs": 0.1039
+    },
+    {
+      "role": "backtest-execution.reporting",
+      "medianMs": 0.0382,
+      "p95Ms": 0.2347,
+      "maximumMs": 1.5561
+    },
+    {
+      "role": "statistical-validation.intake",
+      "medianMs": 0.0219,
+      "p95Ms": 0.0447,
+      "maximumMs": 0.0474
+    },
+    {
+      "role": "statistical-validation.normalization",
+      "medianMs": 0.0247,
+      "p95Ms": 0.027,
+      "maximumMs": 0.0377
+    },
+    {
+      "role": "statistical-validation.schema-validation",
+      "medianMs": 0.021,
+      "p95Ms": 0.0372,
+      "maximumMs": 0.0569
+    },
+    {
+      "role": "statistical-validation.source-validation",
+      "medianMs": 0.021,
+      "p95Ms": 0.0303,
+      "maximumMs": 0.0342
+    },
+    {
+      "role": "statistical-validation.availability-validation",
+      "medianMs": 0.024,
+      "p95Ms": 0.0262,
+      "maximumMs": 0.0383
+    },
+    {
+      "role": "statistical-validation.completeness",
+      "medianMs": 0.0211,
+      "p95Ms": 0.0239,
+      "maximumMs": 0.0515
+    },
+    {
+      "role": "statistical-validation.duplicate-revision-handling",
+      "medianMs": 0.0189,
+      "p95Ms": 0.0198,
+      "maximumMs": 0.0207
+    },
+    {
+      "role": "statistical-validation.feature-calculation",
+      "medianMs": 0.0207,
+      "p95Ms": 0.0285,
+      "maximumMs": 0.0289
+    },
+    {
+      "role": "statistical-validation.analysis",
+      "medianMs": 0.0407,
+      "p95Ms": 0.0554,
+      "maximumMs": 0.0675
+    },
+    {
+      "role": "statistical-validation.anomaly-detection",
+      "medianMs": 0.0211,
+      "p95Ms": 0.0226,
+      "maximumMs": 0.0248
+    },
+    {
+      "role": "statistical-validation.evidence-preparation",
+      "medianMs": 0.0265,
+      "p95Ms": 0.0288,
+      "maximumMs": 0.038
+    },
+    {
+      "role": "statistical-validation.scenario-testing",
+      "medianMs": 0.0355,
+      "p95Ms": 0.0381,
+      "maximumMs": 0.0396
+    },
+    {
+      "role": "statistical-validation.baseline-comparison",
+      "medianMs": 0.0481,
+      "p95Ms": 0.0578,
+      "maximumMs": 0.0623
+    },
+    {
+      "role": "statistical-validation.independent-review",
+      "medianMs": 0.0906,
+      "p95Ms": 0.0993,
+      "maximumMs": 0.1046
+    },
+    {
+      "role": "statistical-validation.monitoring",
+      "medianMs": 0.0226,
+      "p95Ms": 0.0257,
+      "maximumMs": 0.0339
+    },
+    {
+      "role": "statistical-validation.reporting",
+      "medianMs": 0.0315,
+      "p95Ms": 0.1037,
+      "maximumMs": 0.1114
+    },
+    {
+      "role": "benchmark-evaluation.intake",
+      "medianMs": 0.0359,
+      "p95Ms": 0.1047,
+      "maximumMs": 0.1642
+    },
+    {
+      "role": "benchmark-evaluation.normalization",
+      "medianMs": 0.044,
+      "p95Ms": 0.066,
+      "maximumMs": 0.0712
+    },
+    {
+      "role": "benchmark-evaluation.schema-validation",
+      "medianMs": 0.0205,
+      "p95Ms": 0.0357,
+      "maximumMs": 0.0372
+    },
+    {
+      "role": "benchmark-evaluation.source-validation",
+      "medianMs": 0.0223,
+      "p95Ms": 0.0254,
+      "maximumMs": 0.0485
+    },
+    {
+      "role": "benchmark-evaluation.availability-validation",
+      "medianMs": 0.0272,
+      "p95Ms": 0.0389,
+      "maximumMs": 0.0419
+    },
+    {
+      "role": "benchmark-evaluation.completeness",
+      "medianMs": 0.0229,
+      "p95Ms": 0.0239,
+      "maximumMs": 0.0252
+    },
+    {
+      "role": "benchmark-evaluation.duplicate-revision-handling",
+      "medianMs": 0.0214,
+      "p95Ms": 0.0227,
+      "maximumMs": 0.0743
+    },
+    {
+      "role": "benchmark-evaluation.feature-calculation",
+      "medianMs": 0.0233,
+      "p95Ms": 0.0361,
+      "maximumMs": 0.0372
+    },
+    {
+      "role": "benchmark-evaluation.analysis",
+      "medianMs": 0.0443,
+      "p95Ms": 0.0508,
+      "maximumMs": 0.0511
+    },
+    {
+      "role": "benchmark-evaluation.anomaly-detection",
+      "medianMs": 0.023,
+      "p95Ms": 0.0328,
+      "maximumMs": 0.0341
+    },
+    {
+      "role": "benchmark-evaluation.evidence-preparation",
+      "medianMs": 0.0299,
+      "p95Ms": 0.0308,
+      "maximumMs": 0.1655
+    },
+    {
+      "role": "benchmark-evaluation.scenario-testing",
+      "medianMs": 0.0407,
+      "p95Ms": 0.0502,
+      "maximumMs": 0.0638
+    },
+    {
+      "role": "benchmark-evaluation.baseline-comparison",
+      "medianMs": 0.0534,
+      "p95Ms": 0.0547,
+      "maximumMs": 0.0567
+    },
+    {
+      "role": "benchmark-evaluation.independent-review",
+      "medianMs": 0.1039,
+      "p95Ms": 0.1428,
+      "maximumMs": 0.2819
+    },
+    {
+      "role": "benchmark-evaluation.monitoring",
+      "medianMs": 0.025,
+      "p95Ms": 0.0369,
+      "maximumMs": 0.0383
+    },
+    {
+      "role": "benchmark-evaluation.reporting",
+      "medianMs": 0.0396,
+      "p95Ms": 0.0618,
+      "maximumMs": 0.1089
+    },
+    {
+      "role": "performance-attribution.intake",
+      "medianMs": 0.025,
+      "p95Ms": 0.068,
+      "maximumMs": 0.2832
+    },
+    {
+      "role": "performance-attribution.normalization",
+      "medianMs": 0.0284,
+      "p95Ms": 0.0453,
+      "maximumMs": 0.0704
+    },
+    {
+      "role": "performance-attribution.schema-validation",
+      "medianMs": 0.0221,
+      "p95Ms": 0.0238,
+      "maximumMs": 0.0865
+    },
+    {
+      "role": "performance-attribution.source-validation",
+      "medianMs": 0.0229,
+      "p95Ms": 0.0249,
+      "maximumMs": 0.0515
+    },
+    {
+      "role": "performance-attribution.availability-validation",
+      "medianMs": 0.0267,
+      "p95Ms": 0.0733,
+      "maximumMs": 0.1613
+    },
+    {
+      "role": "performance-attribution.completeness",
+      "medianMs": 0.0224,
+      "p95Ms": 0.0245,
+      "maximumMs": 0.0253
+    },
+    {
+      "role": "performance-attribution.duplicate-revision-handling",
+      "medianMs": 0.0205,
+      "p95Ms": 0.0372,
+      "maximumMs": 0.0635
+    },
+    {
+      "role": "performance-attribution.feature-calculation",
+      "medianMs": 0.022,
+      "p95Ms": 0.03,
+      "maximumMs": 0.0311
+    },
+    {
+      "role": "performance-attribution.analysis",
+      "medianMs": 0.0447,
+      "p95Ms": 0.0944,
+      "maximumMs": 0.1523
+    },
+    {
+      "role": "performance-attribution.anomaly-detection",
+      "medianMs": 0.0229,
+      "p95Ms": 0.0344,
+      "maximumMs": 0.0601
+    },
+    {
+      "role": "performance-attribution.evidence-preparation",
+      "medianMs": 0.0292,
+      "p95Ms": 0.042,
+      "maximumMs": 0.0644
+    },
+    {
+      "role": "performance-attribution.scenario-testing",
+      "medianMs": 0.0373,
+      "p95Ms": 0.0792,
+      "maximumMs": 0.1255
+    },
+    {
+      "role": "performance-attribution.baseline-comparison",
+      "medianMs": 0.0482,
+      "p95Ms": 0.0514,
+      "maximumMs": 0.0542
+    },
+    {
+      "role": "performance-attribution.independent-review",
+      "medianMs": 0.089,
+      "p95Ms": 0.118,
+      "maximumMs": 0.2305
+    },
+    {
+      "role": "performance-attribution.monitoring",
+      "medianMs": 0.0216,
+      "p95Ms": 0.0229,
+      "maximumMs": 0.0243
+    },
+    {
+      "role": "performance-attribution.reporting",
+      "medianMs": 0.034,
+      "p95Ms": 0.0875,
+      "maximumMs": 0.1167
+    },
+    {
+      "role": "strategy-versioning.intake",
+      "medianMs": 0.0341,
+      "p95Ms": 0.0536,
+      "maximumMs": 0.0732
+    },
+    {
+      "role": "strategy-versioning.normalization",
+      "medianMs": 0.0241,
+      "p95Ms": 0.0578,
+      "maximumMs": 0.0779
+    },
+    {
+      "role": "strategy-versioning.schema-validation",
+      "medianMs": 0.0184,
+      "p95Ms": 0.0193,
+      "maximumMs": 0.0207
+    },
+    {
+      "role": "strategy-versioning.source-validation",
+      "medianMs": 0.0192,
+      "p95Ms": 0.0313,
+      "maximumMs": 0.0368
+    },
+    {
+      "role": "strategy-versioning.availability-validation",
+      "medianMs": 0.025,
+      "p95Ms": 0.026,
+      "maximumMs": 0.0262
+    },
+    {
+      "role": "strategy-versioning.completeness",
+      "medianMs": 0.0233,
+      "p95Ms": 0.0264,
+      "maximumMs": 0.0421
+    },
+    {
+      "role": "strategy-versioning.duplicate-revision-handling",
+      "medianMs": 0.0199,
+      "p95Ms": 0.0229,
+      "maximumMs": 0.0331
+    },
+    {
+      "role": "strategy-versioning.feature-calculation",
+      "medianMs": 0.0221,
+      "p95Ms": 0.0228,
+      "maximumMs": 0.0232
+    },
+    {
+      "role": "strategy-versioning.analysis",
+      "medianMs": 0.0219,
+      "p95Ms": 0.0225,
+      "maximumMs": 0.0233
+    },
+    {
+      "role": "strategy-versioning.anomaly-detection",
+      "medianMs": 0.022,
+      "p95Ms": 0.0298,
+      "maximumMs": 0.031
+    },
+    {
+      "role": "strategy-versioning.evidence-preparation",
+      "medianMs": 0.029,
+      "p95Ms": 0.0298,
+      "maximumMs": 0.0434
+    },
+    {
+      "role": "strategy-versioning.scenario-testing",
+      "medianMs": 0.0351,
+      "p95Ms": 0.0383,
+      "maximumMs": 0.0396
+    },
+    {
+      "role": "strategy-versioning.baseline-comparison",
+      "medianMs": 0.0502,
+      "p95Ms": 0.0521,
+      "maximumMs": 0.0539
+    },
+    {
+      "role": "strategy-versioning.independent-review",
+      "medianMs": 0.0616,
+      "p95Ms": 0.067,
+      "maximumMs": 0.075
+    },
+    {
+      "role": "strategy-versioning.monitoring",
+      "medianMs": 0.0238,
+      "p95Ms": 0.0446,
+      "maximumMs": 0.0865
+    },
+    {
+      "role": "strategy-versioning.reporting",
+      "medianMs": 0.0223,
+      "p95Ms": 0.0316,
+      "maximumMs": 0.0366
+    },
+    {
+      "role": "paper-execution.intake",
+      "medianMs": 0.0253,
+      "p95Ms": 0.0272,
+      "maximumMs": 0.0291
+    },
+    {
+      "role": "paper-execution.normalization",
+      "medianMs": 0.0308,
+      "p95Ms": 0.0336,
+      "maximumMs": 0.0365
+    },
+    {
+      "role": "paper-execution.schema-validation",
+      "medianMs": 0.0246,
+      "p95Ms": 0.0275,
+      "maximumMs": 0.0388
+    },
+    {
+      "role": "paper-execution.source-validation",
+      "medianMs": 0.0546,
+      "p95Ms": 0.0781,
+      "maximumMs": 0.1128
+    },
+    {
+      "role": "paper-execution.availability-validation",
+      "medianMs": 0.0332,
+      "p95Ms": 0.0775,
+      "maximumMs": 0.1575
+    },
+    {
+      "role": "paper-execution.completeness",
+      "medianMs": 0.0282,
+      "p95Ms": 0.0353,
+      "maximumMs": 0.0405
+    },
+    {
+      "role": "paper-execution.duplicate-revision-handling",
+      "medianMs": 0.0246,
+      "p95Ms": 0.0386,
+      "maximumMs": 0.0387
+    },
+    {
+      "role": "paper-execution.feature-calculation",
+      "medianMs": 0.0276,
+      "p95Ms": 0.0292,
+      "maximumMs": 0.0414
+    },
+    {
+      "role": "paper-execution.analysis",
+      "medianMs": 0.0526,
+      "p95Ms": 0.0576,
+      "maximumMs": 0.0616
+    },
+    {
+      "role": "paper-execution.anomaly-detection",
+      "medianMs": 0.0283,
+      "p95Ms": 0.032,
+      "maximumMs": 0.0437
+    },
+    {
+      "role": "paper-execution.evidence-preparation",
+      "medianMs": 0.0363,
+      "p95Ms": 0.0388,
+      "maximumMs": 0.0454
+    },
+    {
+      "role": "paper-execution.scenario-testing",
+      "medianMs": 0.0478,
+      "p95Ms": 0.0518,
+      "maximumMs": 0.0536
+    },
+    {
+      "role": "paper-execution.baseline-comparison",
+      "medianMs": 0.064,
+      "p95Ms": 0.0659,
+      "maximumMs": 0.0762
+    },
+    {
+      "role": "paper-execution.independent-review",
+      "medianMs": 0.1201,
+      "p95Ms": 0.1634,
+      "maximumMs": 0.2105
+    },
+    {
+      "role": "paper-execution.monitoring",
+      "medianMs": 0.0286,
+      "p95Ms": 0.0409,
+      "maximumMs": 0.0469
+    },
+    {
+      "role": "paper-execution.reporting",
+      "medianMs": 0.0258,
+      "p95Ms": 0.0403,
+      "maximumMs": 0.0615
+    },
+    {
+      "role": "order-position-reconciliation.intake",
+      "medianMs": 0.0252,
+      "p95Ms": 0.0676,
+      "maximumMs": 0.1333
+    },
+    {
+      "role": "order-position-reconciliation.normalization",
+      "medianMs": 0.0608,
+      "p95Ms": 0.0839,
+      "maximumMs": 0.0844
+    },
+    {
+      "role": "order-position-reconciliation.schema-validation",
+      "medianMs": 0.0399,
+      "p95Ms": 0.0596,
+      "maximumMs": 0.0692
+    },
+    {
+      "role": "order-position-reconciliation.source-validation",
+      "medianMs": 0.0244,
+      "p95Ms": 0.0255,
+      "maximumMs": 0.0258
+    },
+    {
+      "role": "order-position-reconciliation.availability-validation",
+      "medianMs": 0.0299,
+      "p95Ms": 0.0311,
+      "maximumMs": 0.0386
+    },
+    {
+      "role": "order-position-reconciliation.completeness",
+      "medianMs": 0.0291,
+      "p95Ms": 0.0445,
+      "maximumMs": 0.0696
+    },
+    {
+      "role": "order-position-reconciliation.duplicate-revision-handling",
+      "medianMs": 0.0248,
+      "p95Ms": 0.0395,
+      "maximumMs": 0.0428
+    },
+    {
+      "role": "order-position-reconciliation.feature-calculation",
+      "medianMs": 0.0272,
+      "p95Ms": 0.0279,
+      "maximumMs": 0.0294
+    },
+    {
+      "role": "order-position-reconciliation.analysis",
+      "medianMs": 0.0533,
+      "p95Ms": 0.0657,
+      "maximumMs": 0.0682
+    },
+    {
+      "role": "order-position-reconciliation.anomaly-detection",
+      "medianMs": 0.0292,
+      "p95Ms": 0.034,
+      "maximumMs": 0.0375
+    },
+    {
+      "role": "order-position-reconciliation.evidence-preparation",
+      "medianMs": 0.0348,
+      "p95Ms": 0.0369,
+      "maximumMs": 0.045
+    },
+    {
+      "role": "order-position-reconciliation.scenario-testing",
+      "medianMs": 0.0487,
+      "p95Ms": 0.1069,
+      "maximumMs": 0.1562
+    },
+    {
+      "role": "order-position-reconciliation.baseline-comparison",
+      "medianMs": 0.0615,
+      "p95Ms": 0.0661,
+      "maximumMs": 0.0746
+    },
+    {
+      "role": "order-position-reconciliation.independent-review",
+      "medianMs": 0.115,
+      "p95Ms": 0.1501,
+      "maximumMs": 0.1607
+    },
+    {
+      "role": "order-position-reconciliation.monitoring",
+      "medianMs": 0.0498,
+      "p95Ms": 0.2303,
+      "maximumMs": 0.2731
+    },
+    {
+      "role": "order-position-reconciliation.reporting",
+      "medianMs": 0.028,
+      "p95Ms": 0.0446,
+      "maximumMs": 0.0558
+    },
+    {
+      "role": "recovery-persistence.intake",
+      "medianMs": 0.0244,
+      "p95Ms": 0.0439,
+      "maximumMs": 0.0518
+    },
+    {
+      "role": "recovery-persistence.normalization",
+      "medianMs": 0.0298,
+      "p95Ms": 0.0328,
+      "maximumMs": 0.0452
+    },
+    {
+      "role": "recovery-persistence.schema-validation",
+      "medianMs": 0.023,
+      "p95Ms": 0.031,
+      "maximumMs": 0.0367
+    },
+    {
+      "role": "recovery-persistence.source-validation",
+      "medianMs": 0.0222,
+      "p95Ms": 0.0229,
+      "maximumMs": 0.0232
+    },
+    {
+      "role": "recovery-persistence.availability-validation",
+      "medianMs": 0.0265,
+      "p95Ms": 0.0353,
+      "maximumMs": 0.0442
+    },
+    {
+      "role": "recovery-persistence.completeness",
+      "medianMs": 0.0229,
+      "p95Ms": 0.025,
+      "maximumMs": 0.0363
+    },
+    {
+      "role": "recovery-persistence.duplicate-revision-handling",
+      "medianMs": 0.0195,
+      "p95Ms": 0.0212,
+      "maximumMs": 0.0227
+    },
+    {
+      "role": "recovery-persistence.feature-calculation",
+      "medianMs": 0.0217,
+      "p95Ms": 0.0235,
+      "maximumMs": 0.0286
+    },
+    {
+      "role": "recovery-persistence.analysis",
+      "medianMs": 0.0212,
+      "p95Ms": 0.0218,
+      "maximumMs": 0.0226
+    },
+    {
+      "role": "recovery-persistence.anomaly-detection",
+      "medianMs": 0.0205,
+      "p95Ms": 0.0223,
+      "maximumMs": 0.0351
+    },
+    {
+      "role": "recovery-persistence.evidence-preparation",
+      "medianMs": 0.0282,
+      "p95Ms": 0.0455,
+      "maximumMs": 0.0783
+    },
+    {
+      "role": "recovery-persistence.scenario-testing",
+      "medianMs": 0.0334,
+      "p95Ms": 0.0364,
+      "maximumMs": 0.0471
+    },
+    {
+      "role": "recovery-persistence.baseline-comparison",
+      "medianMs": 0.0455,
+      "p95Ms": 0.048,
+      "maximumMs": 0.0561
+    },
+    {
+      "role": "recovery-persistence.independent-review",
+      "medianMs": 0.0539,
+      "p95Ms": 0.0604,
+      "maximumMs": 0.0815
+    },
+    {
+      "role": "recovery-persistence.monitoring",
+      "medianMs": 0.0204,
+      "p95Ms": 0.0212,
+      "maximumMs": 0.0215
+    },
+    {
+      "role": "recovery-persistence.reporting",
+      "medianMs": 0.0191,
+      "p95Ms": 0.02,
+      "maximumMs": 0.0214
+    },
+    {
+      "role": "operations-security.intake",
+      "medianMs": 0.019,
+      "p95Ms": 0.0203,
+      "maximumMs": 0.0211
+    },
+    {
+      "role": "operations-security.normalization",
+      "medianMs": 0.024,
+      "p95Ms": 0.0284,
+      "maximumMs": 0.0384
+    },
+    {
+      "role": "operations-security.schema-validation",
+      "medianMs": 0.0282,
+      "p95Ms": 0.0588,
+      "maximumMs": 0.1077
+    },
+    {
+      "role": "operations-security.source-validation",
+      "medianMs": 0.0361,
+      "p95Ms": 0.0926,
+      "maximumMs": 0.0958
+    },
+    {
+      "role": "operations-security.availability-validation",
+      "medianMs": 0.0454,
+      "p95Ms": 0.0772,
+      "maximumMs": 0.0949
+    },
+    {
+      "role": "operations-security.completeness",
+      "medianMs": 0.0214,
+      "p95Ms": 0.0319,
+      "maximumMs": 0.0431
+    },
+    {
+      "role": "operations-security.duplicate-revision-handling",
+      "medianMs": 0.0203,
+      "p95Ms": 0.021,
+      "maximumMs": 0.0212
+    },
+    {
+      "role": "operations-security.feature-calculation",
+      "medianMs": 0.0237,
+      "p95Ms": 0.0401,
+      "maximumMs": 0.0451
+    },
+    {
+      "role": "operations-security.analysis",
+      "medianMs": 0.0367,
+      "p95Ms": 0.0441,
+      "maximumMs": 0.0522
+    },
+    {
+      "role": "operations-security.anomaly-detection",
+      "medianMs": 0.0225,
+      "p95Ms": 0.0256,
+      "maximumMs": 0.0288
+    },
+    {
+      "role": "operations-security.evidence-preparation",
+      "medianMs": 0.0288,
+      "p95Ms": 0.0297,
+      "maximumMs": 0.0312
+    },
+    {
+      "role": "operations-security.scenario-testing",
+      "medianMs": 0.0374,
+      "p95Ms": 0.0403,
+      "maximumMs": 0.0429
+    },
+    {
+      "role": "operations-security.baseline-comparison",
+      "medianMs": 0.0523,
+      "p95Ms": 0.1057,
+      "maximumMs": 0.1306
+    },
+    {
+      "role": "operations-security.independent-review",
+      "medianMs": 0.0857,
+      "p95Ms": 0.0967,
+      "maximumMs": 0.1174
+    },
+    {
+      "role": "operations-security.monitoring",
+      "medianMs": 0.0246,
+      "p95Ms": 0.0272,
+      "maximumMs": 0.0361
+    },
+    {
+      "role": "operations-security.reporting",
+      "medianMs": 0.023,
+      "p95Ms": 0.0236,
+      "maximumMs": 0.0239
+    },
+    {
+      "role": "application-reporting.intake",
+      "medianMs": 0.0219,
+      "p95Ms": 0.0236,
+      "maximumMs": 0.0246
+    },
+    {
+      "role": "application-reporting.normalization",
+      "medianMs": 0.0289,
+      "p95Ms": 0.0351,
+      "maximumMs": 0.0433
+    },
+    {
+      "role": "application-reporting.schema-validation",
+      "medianMs": 0.0223,
+      "p95Ms": 0.0236,
+      "maximumMs": 0.0262
+    },
+    {
+      "role": "application-reporting.source-validation",
+      "medianMs": 0.0229,
+      "p95Ms": 0.0235,
+      "maximumMs": 0.0237
+    },
+    {
+      "role": "application-reporting.availability-validation",
+      "medianMs": 0.0444,
+      "p95Ms": 0.0715,
+      "maximumMs": 0.1069
+    },
+    {
+      "role": "application-reporting.completeness",
+      "medianMs": 0.0468,
+      "p95Ms": 0.296,
+      "maximumMs": 0.4119
+    },
+    {
+      "role": "application-reporting.duplicate-revision-handling",
+      "medianMs": 0.0263,
+      "p95Ms": 0.0384,
+      "maximumMs": 0.0889
+    },
+    {
+      "role": "application-reporting.feature-calculation",
+      "medianMs": 0.0255,
+      "p95Ms": 0.0603,
+      "maximumMs": 0.0603
+    },
+    {
+      "role": "application-reporting.analysis",
+      "medianMs": 0.0417,
+      "p95Ms": 0.1438,
+      "maximumMs": 0.2139
+    },
+    {
+      "role": "application-reporting.anomaly-detection",
+      "medianMs": 0.0236,
+      "p95Ms": 0.0258,
+      "maximumMs": 0.0267
+    },
+    {
+      "role": "application-reporting.evidence-preparation",
+      "medianMs": 0.0577,
+      "p95Ms": 0.0894,
+      "maximumMs": 0.1523
+    },
+    {
+      "role": "application-reporting.scenario-testing",
+      "medianMs": 0.0647,
+      "p95Ms": 0.0946,
+      "maximumMs": 0.099
+    },
+    {
+      "role": "application-reporting.baseline-comparison",
+      "medianMs": 0.0551,
+      "p95Ms": 0.0587,
+      "maximumMs": 0.0711
+    },
+    {
+      "role": "application-reporting.independent-review",
+      "medianMs": 0.0875,
+      "p95Ms": 0.0933,
+      "maximumMs": 0.0983
+    },
+    {
+      "role": "application-reporting.monitoring",
+      "medianMs": 0.025,
+      "p95Ms": 0.0277,
+      "maximumMs": 0.0336
+    },
+    {
+      "role": "application-reporting.reporting",
+      "medianMs": 0.0241,
+      "p95Ms": 0.025,
+      "maximumMs": 0.0256
+    }
+  ],
+  "executionAllowed": false,
+  "limitations": [
+    "Synthetic local CPU timings; not live trading or profitability evidence.",
+    "Local handler measurements exclude network, queue wait, process startup and SQLite.",
+    "Queue timings include enqueue, one subprocess and result persistence, not review acceptance.",
+    "512 registered roles are not 512 continuously running AI models."
+  ]
+}

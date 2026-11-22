@@ -139,6 +139,8 @@ def run_workspace_scenario(browser):
         publisher=source.upper(), url='https://news.example/' + str(i),
         publishedAt='2026-11-22T06:00:00Z', availableAt='2026-11-22T06:01:00Z')
         for i, source in enumerate(('nse', 'et'))]
+    stories[0]['filings'] = [dict(url='https://nsearchives.nseindia.com/corporate/demo.pdf',
+        documentType='Financial results', contentStatus='linked-not-downloaded')]
     case.namespace['NEWS_AGENT'] = SimpleNamespace(status=lambda *args: dict(
         status='fetched', stale=False, sources=[], items=stories))
     case.namespace['ALERTS'].observe('fixture:outage', 'Fixture feed unavailable.', True)
@@ -151,9 +153,14 @@ def run_workspace_scenario(browser):
         page.on('request', lambda req: posts.append(req.url) if req.method == 'POST' else None)
         page.goto(base, wait_until='networkidle')
         page.get_by_text('Market news', exact=True).click()
-        page.get_by_text('1 matching stories', exact=True).wait_for()
+        page.get_by_text('2 matching stories', exact=True).wait_for()
+        page.locator('#news-kind-filter').select_option('filings')
+        document_link = page.get_by_role('link', name='Open NSE filing - PDF', exact=True)
+        document_link.wait_for()
+        assert document_link.get_attribute('href') == 'https://nsearchives.nseindia.com/corporate/demo.pdf'
+        page.locator('#news-kind-filter').select_option('all')
         page.locator('#news-search').fill('DEMO')
-        page.get_by_text('Mapped stock match', exact=True).wait_for()
+        page.get_by_text('Mapped stock match', exact=True).first.wait_for()
         page.locator('#news-source-filter').select_option('et')
         assert page.get_by_text('DEMO announces results', exact=True).count() == 1
         page.locator('#news-search').fill('NO_MATCH')

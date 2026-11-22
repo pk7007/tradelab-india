@@ -29,7 +29,7 @@ PAPER_BUILD_FILES = ("app.py", "paper.py", "paper_worker.py", "worker_runtime.py
                      "intraday_session.py", "session_evidence.py", "desk_coordinator.py", "entry_review.py",
                      "strategy_contract.py", "research.py", "research_context.py",
                      "integrated_news.py", "syndication.py", "syndication_transport.py",
-                     "trade_workflow.py", "agent_handlers.py", "agent_catalog.py")
+                     "trade_workflow.py", "agent_handlers.py", "agent_catalog.py", "news_agent.py", "dashboard_news.py", "announcements.py", "nse_filings.py")
 PAPER_BUILD = hashlib.sha256(b"".join(hashlib.sha256((ROOT / name).read_bytes()).digest()
                                      for name in PAPER_BUILD_FILES)).hexdigest()
 KITE_API = "https://api.kite.trade"
