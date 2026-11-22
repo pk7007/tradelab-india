@@ -1,6 +1,6 @@
 # TradeLab India
 
-### An Indian-market research and trading workspace
+### A local-first Indian-market research and paper-trading workspace
 
 The home workspace opens on **Auto Trading**, combining intraday selection, session controls, positions, results and evidence. Settings contains connection, assumptions and diagnostics. Long-term research is deferred until intraday paper acceptance is complete. See the [intraday automation guide](docs/intraday-automation.md). The previous control room is available at `/advanced`.
 
@@ -10,11 +10,21 @@ TradeLab brings market data, strategy evaluation, risk planning and reviewed man
 
 **Status:** research and durable paper-trading prototype. Manual and automated live dispatch are locked pending integrated broker funding, ownership, risk and exit validation. Real-market profitability is unproven.
 
+### At a glance
+
+| Available to explore | Not yet verified or connected |
+| --- | --- |
+| Offline synthetic evaluation, transparent cost/benchmark comparison and recorded research assumptions | Profitable strategy performance on independent real-market samples |
+| Durable paper accounts, modeled fills, session risk controls and restart-recovery fixtures | Production-ready live broker execution or unattended financial operations |
+| Local dashboard, Zerodha read integration when authenticated, source-aware RSS research | Complete licensed news and filing coverage, a connected LLM or validated AI-driven trading decisions |
+
+**New here?** Start with the [5-minute portfolio tour](docs/portfolio-tour.md) for a safe demo, or the [cross-platform developer setup](docs/development-setup.md) to run it. For exact implemented/partial/disconnected boundaries, see [capability status](docs/feature-status.md). No broker login or AI API key is needed to inspect the synthetic demo.
+
 Latest full algorithm audit: [complete audit and pending steps](docs/complete-algorithm-audit-2026-11-20.md).
 
 Latest whole-application review: [22 November full audit](docs/full-audit-2026-11-22.md), rated **7.2/10** for the full requested platform. The unattended paper workflow received **9/10** for offline engineering, and full-platform integration is **7/10**. Actual-market performance and profitability remain unverified. The [integration record](docs/integration-2026-11-22.md), [UI audit](docs/ui-ux-audit-2026-11-22.md) and [external-source plan](docs/external-source-plan.md) detail the remaining acceptance work. Historical ratings remain in the [21 November assessment](docs/application-review-2026-11-21.md).
 
-[Get started](#quick-start) · [Features](#features) · [Evaluation](#strategy-evaluation) · [Roadmap](#roadmap) · [Documentation](#documentation)
+[Portfolio tour](docs/portfolio-tour.md) · [Get started](#quick-start) · [Developer setup](docs/development-setup.md) · [Features](#features) · [Architecture](#architecture-at-a-glance) · [Evaluation](#strategy-evaluation) · [Roadmap](#roadmap) · [Documentation](#documentation)
 
 ## Features
 
@@ -35,6 +45,22 @@ Latest whole-application review: [22 November full audit](docs/full-audit-2026-1
 **Research → Evaluate → Plan risk → Review an order**
 
 Inspect permitted data, test a rule against a benchmark, review its assumptions, and size a hypothetical position. Paper approval and manually reviewed broker orders are separate workflows. Authenticated forward paper verification remains the next acceptance stage.
+
+## Architecture at a glance
+
+```mermaid
+flowchart LR
+    UI["Local browser UI"] --> App["Python local service"]
+    App --> Eval["Deterministic evaluation"]
+    App --> Paper["Durable paper ledger / worker"]
+    App --> Research["Market and news research"]
+    App --> Broker["Optional Zerodha read APIs"]
+    Paper --> DB["Private local SQLite"]
+    Eval --> Reports["Synthetic / imported reports"]
+    App -. "Server-side lock" .-> NoLive["No live order dispatch"]
+```
+
+This is a conceptual view of the project, **not** a claim that its separate paper, automation, journal and research ledgers form a unified live execution system. See [architecture details](docs/architecture.md), the [current capability map](docs/feature-status.md) and the [portfolio tour](docs/portfolio-tour.md).
 
 ## Quick start
 
@@ -149,6 +175,9 @@ Evaluations run through the portal retain report summaries, settings and dataset
 | [Architecture](docs/architecture.md) | Application structure and design context |
 | [Current repair report](docs/system-repair-2026-11-18.md) | Gap register, tests, recovery and remaining live blockers |
 | [Capability map](docs/feature-status.md) | Route-by-route implementation status |
+| [Portfolio tour](docs/portfolio-tour.md) | Five-minute recruiter-friendly, offline demo and interview framing |
+| [Development setup](docs/development-setup.md) | Cross-platform installation, offline verification and troubleshooting |
+| [Benchmark study](docs/benchmark-study-2026-11-23.md) | Lessons from 15 public repositories, with explicit evidence limits |
 
 ## Safety and scope
 
@@ -156,7 +185,7 @@ TradeLab is a local, single-user prototype. It binds to loopback and keeps broke
 
 Keep credentials, account records and licensed market exports out of Git. No real market dataset is bundled. Imports require permission for the intended use; public accessibility does not imply redistribution rights.
 
-Historical simulations assume fills and costs. Liquidity, taxes, corporate actions, gaps and outages can materially change real outcomes. Five-minute evaluation may hold overnight and is not an intraday square-off simulation. News feeds and automatic filing ingestion remain disconnected. The original paper-approval tool has a session-only book; `/trader-paper` uses a separate durable ledger with hypothetical fills.
+Historical simulations assume fills and costs. Liquidity, taxes, corporate actions, gaps and outages can materially change real outcomes. Five-minute evaluation may hold overnight and is not an intraday square-off simulation. The integrated RSS news agent supplies advisory research context; the licensed Moneycontrol collector and comprehensive filing coverage remain incomplete or disconnected. News has not been validated as a trading signal. The original paper-approval tool has a session-only book; `/trader-paper` uses a separate durable ledger with hypothetical fills.
 
 This project does not promise returns or loss-free trading and makes no investment-adviser or regulatory-approval claim. Its tests verify software behavior, not profitability or production readiness.
 
