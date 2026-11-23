@@ -41,6 +41,7 @@ jobs:
           node --check web/portal.js
           node --check web/platform.js
           node --check web/workspace-tools.js
+          node --check tests/news-labels.test.js
           python -m py_compile news_intelligence.py news_assessor.py
           python -m py_compile trade_workflow.py operational_alerts.py operations.py scripts/watch_service.py
       - name: Account calculation regression tests
@@ -54,6 +55,7 @@ jobs:
           node tests/session-ui.test.js
           node tests/news-time.test.js
           node tests/news-filters.test.js
+          node tests/news-labels.test.js
       - name: Offline data and research tests
         run: python -m unittest discover -s tests -v
       - name: Paper fixture disconnect and process restart

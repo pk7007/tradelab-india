@@ -33,7 +33,7 @@ a result with `executionAllowed: false`.
   availableAt, executionAllowed=false) plus an `intelligence` summary.
 - The private store `news-assessments.sqlite` holds ids and labels only: no article text, no quote
   (a hash instead) and no free-text rationale.
-- The UI does not display labels yet.
+- The portal news list shows each label (sentiment, confidence, event type) as an "Automatic research label (not advice)" line, plus a one-line intelligence status (web/portal.js; tests/news-labels.test.js).
 
 ## Not yet done
 - Real-provider check: `anthropic_completer` is untested against the live API. It needs a key
