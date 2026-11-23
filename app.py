@@ -125,6 +125,7 @@ class KiteSessionExpired(KiteError):
 
 
 def kite_request(path: str, token: str, *, method: str = "GET", form: dict[str, Any] | None = None) -> dict[str, Any]:
+    from broker_transport import fetch_json
     data = urllib.parse.urlencode(form).encode("utf-8") if form is not None else None
     headers = {
         "Authorization": f"token {API_KEY}:{token}",
@@ -136,14 +137,13 @@ def kite_request(path: str, token: str, *, method: str = "GET", form: dict[str, 
         headers["Content-Type"] = "application/x-www-form-urlencoded"
     request = urllib.request.Request(f"{KITE_API}{path}", data=data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(request, timeout=15) as response:  # nosec B310
-            payload = json.loads(response.read(2_000_000).decode("utf-8"))
+        payload = fetch_json(request)
     except urllib.error.HTTPError as exc:
         # Provider bodies may echo account details, request URLs, or credentials.
         if exc.code == 403:
             raise KiteSessionExpired("Broker session expired. Reconnect Zerodha.") from None
         raise KiteError(f"Broker request failed with HTTP {exc.code}. Check connection and broker status.") from None
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+    except (urllib.error.URLError, TimeoutError, ValueError, UnicodeError) as exc:
         raise KiteError(f"Could not reach Kite Connect: {type(exc).__name__}") from None
     if not isinstance(payload, dict) or payload.get("status") != "success":
         raise KiteError("Broker returned an unsuccessful or invalid response. Check the broker account directly.")
@@ -820,8 +820,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=15) as response:  # nosec B310
-                payload = json.loads(response.read(256_000).decode("utf-8"))
+            from broker_transport import fetch_json
+            payload = fetch_json(request)
             if payload.get("status") != "success" or not payload.get("data", {}).get("access_token"):
                 raise KiteError("Kite Connect did not return an access token.")
             profile = payload["data"]
@@ -953,6 +953,7 @@ def serve() -> None:
         DESK.stop()
         NEWS_AGENT.stop()
         OPERATIONS.stop()
+        MARKET.close()
         server.server_close()
 
 

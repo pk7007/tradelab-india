@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import sqlite3
 import threading
+from execution_controls import ExecutionControls
 
 ACTIVE=('PREPARED','SUBMITTING','UNKNOWN','OPEN','PARTIAL')
 TERMINAL=('COMPLETE','CANCELLED','REJECTED')
@@ -54,6 +55,7 @@ class Coordinator:
             db.execute("UPDATE intents SET state='UNKNOWN',updated=? WHERE state='SUBMITTING'",(now(),))
             self.event(db,'startup','Disarmed. Reconcile before any execution; no automatic resume.')
         self.funding = SharedReservations(self.path)
+        self.controls = ExecutionControls(self)
     @contextmanager
     def db(self):
         db=sqlite3.connect(self.path,timeout=10);db.row_factory=sqlite3.Row
@@ -77,7 +79,7 @@ class Coordinator:
             events=[dict(r) for r in db.execute('SELECT * FROM audit ORDER BY seq DESC LIMIT 60')]
         return dict(state=self.state,reconciled=self.reconciled,liveEnabled=False,
                     config=json.loads(cfg['body']) if cfg else None,version=cfg['version'] if cfg else None,
-                    intents=intents,events=events,funding=self.funding.status(),blockers=['Exact strategy and limits require your approval.',
+                    intents=intents,events=events,funding=self.funding.status(),controls=self.controls.status(),blockers=['Exact strategy and limits require your approval.',
                     'Production broker execution adapter and supervised readiness validation remain incomplete.',
                     'Registered static IP and broker requirements must be verified.'])
     def control(self,action):
@@ -98,6 +100,8 @@ class Coordinator:
             c=json.loads(row['body'])
             if self.state!='running' or not self.reconciled:raise ValueError('Disarmed or unreconciled.')
             if symbol not in c['symbols'] or quantity!=c['units']:raise ValueError('Instrument or size not approved.')
+            account = snapshot.get('fundingAccount', 'offline-default')
+            self.controls.guard_in(db, account)
             keys=('ageSeconds','exposure','positionValue','positionCount','loss','available','marginRequired','spreadBps')
             if any(k not in snapshot or isinstance(snapshot[k],bool) or not isinstance(snapshot[k],(int,float)) or not math.isfinite(snapshot[k]) or snapshot[k]<0 for k in keys):raise ValueError('Incomplete risk snapshot.')
             if snapshot['ageSeconds']>5 or snapshot.get('inSession') is not True or snapshot.get('externalMismatch') is not False:raise ValueError('Stale, outside session, or broker mismatch.')
@@ -137,6 +141,7 @@ class Coordinator:
             if (not reservation or reservation['state']!='ACTIVE' or reservation['account_blocked']
                     or reservation['side']!=row['side'] or reservation['units']!=row['quantity'] or reservation['filled']!=0):
                 raise ValueError('Active reconciled funding reservation required before submission.')
+            self.controls.guard_in(db,reservation['account'])
             held=db.execute("SELECT COALESCE(SUM(cash+fees),0) FROM funding_reservations WHERE account=? AND state='ACTIVE'",(reservation['account'],)).fetchone()[0]
             if held>reservation['account_cash']:
                 raise ValueError('Funding changed after preparation; reconcile before submission.')
@@ -152,6 +157,7 @@ class Coordinator:
                 # A delayed transport failure cannot erase broker evidence that
                 # arrived via reconciliation while submit was in flight.
                 db.execute("UPDATE intents SET state='UNKNOWN',updated=? WHERE id=? AND state='SUBMITTING'",(now(),identity))
+                self.controls.kill_in(db,reservation['account'],'Entry submission outcome unknown; reconcile before rearm.')
                 self.state='faulted';self.reconciled=False;self.event(db,'submission-unknown',identity)
             return
         with self.lock,self.db() as db:
@@ -162,6 +168,7 @@ class Coordinator:
                     db.execute("UPDATE intents SET state='UNKNOWN',updated=? WHERE id=?",(now(),identity))
                 db.execute('UPDATE funding_accounts SET blocked=1')
                 self.state='faulted';self.reconciled=False
+                self.controls.kill_in(db,reservation['account'],'Entry acknowledgement identity conflicts.')
                 self.event(db,'acknowledgement-id-mismatch',identity)
             else:
                 # ACK establishes acceptance only; preserve partial, terminal,
@@ -173,6 +180,8 @@ class Coordinator:
             db.execute('BEGIN IMMEDIATE')
             if external_mismatch:
                 db.execute('UPDATE funding_accounts SET blocked=1')
+                for account_row in db.execute('SELECT account FROM funding_accounts').fetchall():
+                    self.controls.kill_in(db,account_row['account'],'Broker/local account mismatch requires operator review.')
             for update in updates:
                 row=db.execute('SELECT * FROM intents WHERE id=?',(update['id'],)).fetchone()
                 if not row:external_mismatch=True;continue
@@ -196,11 +205,20 @@ class Coordinator:
             unresolved=db.execute("SELECT 1 FROM intents WHERE state IN ('SUBMITTING','UNKNOWN','PREPARED')").fetchone()
             if external_mismatch:
                 db.execute('UPDATE funding_accounts SET blocked=1')
+                for account_row in db.execute('SELECT account FROM funding_accounts').fetchall():
+                    self.controls.kill_in(db,account_row['account'],'Broker/local account mismatch requires operator review.')
             funding_blocked = db.execute('SELECT 1 FROM funding_accounts WHERE blocked=1').fetchone()
             self.reconciled=not unresolved and not external_mismatch and not funding_blocked
             if not self.reconciled:self.state='faulted'
             self.event(db,'mock-reconciled','Matched' if self.reconciled else 'Uncertainty or external mismatch; disarmed.')
         return self.status()
+
+    def emergency_stop_mock(self,account,reason):
+        return self.controls.kill(account,reason)
+    def protective_mock(self,account,instrument,broker,**values):
+        return self.controls.ensure_protection_mock(account,instrument,broker,**values)
+    def session_tick_mock(self,account,*,as_of):
+        return self.controls.clock_tick(account,as_of=as_of)
 
 class SharedReservations:
     """Offline shared funding ledger. Monetary amounts are integer paise.
