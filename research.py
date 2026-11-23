@@ -230,7 +230,11 @@ class ResearchRiskGate:
             sym,side=sym.strip(),side.strip().upper()
             if sides.setdefault(sym,side)!=side: conflicts.add(sym)
             merged[(sym,side)]=merged.get((sym,side),0)+qty
-        for sym in sorted(conflicts):
+        overflow={sym for (sym,_),qty in merged.items() if sym not in conflicts and not math.isfinite(qty)}
+        for sym in sorted(overflow):  # finite rows can still sum to inf
+            rejected.append({'index':None,'symbol':sym,'reason':'Merged quantity is not finite'})
+        conflicts|=overflow
+        for sym in sorted(conflicts-overflow):
             rejected.append({'index':None,'symbol':sym,'reason':'Conflicting sides; net exit ambiguous'})
         exits=[{'symbol':sym,'side':'SELL' if side=='BUY' else 'BUY','quantity':qty,
                 'intentOnly':True,'submitted':False}

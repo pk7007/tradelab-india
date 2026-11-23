@@ -47,6 +47,12 @@ a result with `executionAllowed: false`.
 ## Not yet done
 - Real-provider check: `anthropic_completer` is untested against the live API. It needs a key
   supplied through the secure credential form, never chat or the repo.
+  Fixed 23 Nov 2026: the completer passed `temperature=0`, which the pinned SDK
+  (anthropic>=2.12, API version 2026-10-21) does not accept, so every enabled call raised
+  `TypeError` and was recorded as `unavailable`. It now sends no sampling parameters, uses
+  `output_config.effort='low'` and `max_tokens=1024`, and reports a `refusal` or `max_tokens`
+  stop as `unavailable` (`IncompleteReply`). An offline test binds the request to the installed
+  SDK signature. A live call is still unverified.
 - Dashboard display, token-level spend reporting (the cap counts calls, not tokens or cost), and a daily cap tied to a currency amount.
 - Historical evaluation of whether labels predict price behaviour. Until then they are context only.
 - Models may wrap JSON in code fences. Such replies are rejected on purpose; measure the rate before relaxing.
