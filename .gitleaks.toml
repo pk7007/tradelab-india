@@ -1,0 +1,14 @@
+title = "TradeLab gitleaks config"
+
+[extend]
+useDefault = true
+
+# Test fixtures that deliberately contain fake secret-shaped strings to exercise
+# the secret scrubber and the structure check's secret detection. No real values.
+[allowlist]
+description = "Fake secret fixtures used by tests"
+paths = [
+  '''tests/test_project_report\.py''',
+  '''tests/test_structure_check\.py''',
+  '''__pycache__/''',
+]

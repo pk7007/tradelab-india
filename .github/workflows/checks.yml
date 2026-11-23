@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -68,3 +70,11 @@ jobs:
         run: python scripts/fixture_recovery.py
       - name: Repository structure check
         run: python scripts/structure_check.py
+      - name: Secret scan (gitleaks, full history)
+        run: |
+          VERSION=8.24.2
+          curl -sSfL -O "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz"
+          curl -sSfL -O "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_checksums.txt"
+          grep "gitleaks_${VERSION}_linux_x64.tar.gz" "gitleaks_${VERSION}_checksums.txt" | sha256sum -c -
+          tar -xzf "gitleaks_${VERSION}_linux_x64.tar.gz" gitleaks
+          ./gitleaks git --redact --no-banner --config .gitleaks.toml .
