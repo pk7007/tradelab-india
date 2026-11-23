@@ -44,6 +44,9 @@ jobs:
           node --check tests/news-labels.test.js
           python -m py_compile news_intelligence.py news_assessor.py indicators.py ema_adx_strategy.py
           python -m py_compile trade_workflow.py operational_alerts.py operations.py scripts/watch_service.py
+          python -m py_compile agent_catalog.py agent_handlers.py agent_service.py auto_selector.py desk_coordinator.py experiment_registry.py
+          python -m py_compile fundamental_research.py intraday_session.py nse_filings.py observed_forward.py session_evidence.py storage_ops.py
+          python -m py_compile scripts/structure_check.py
       - name: Account calculation regression tests
         run: |
           node tests/account.test.js
@@ -60,3 +63,5 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Paper fixture disconnect and process restart
         run: python scripts/fixture_recovery.py
+      - name: Repository structure check
+        run: python scripts/structure_check.py
