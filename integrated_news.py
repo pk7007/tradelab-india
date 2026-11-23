@@ -133,19 +133,43 @@ class LicensedNews:
 
 class IntegratedNews:
     """Shared lifecycle and snapshot API consumed by UI, research and paper workers."""
-    def __init__(self, rss, licensed):
+    def __init__(self, rss, licensed, assessor=None):
         self.rss = rss
         self.licensed = licensed
+        self.assessor = assessor
 
     def start(self):
         self.rss.start()
         self.licensed.start()
+        if self.assessor:
+            self.assessor.start()
 
     def stop(self):
+        if self.assessor:
+            self.assessor.stop()
         self.licensed.stop()
         self.rss.stop()
 
+    def _with_assessments(self, result):
+        """Attach optional model labels. They are context and never gate other processing."""
+        if self.assessor:
+            try:
+                found = self.assessor.assessments_for(result.get('items', []))
+                summary = self.assessor.summary()
+            except Exception:
+                found, summary = {}, dict(status='unavailable')
+            for item in result.get('items', []):
+                if item.get('id') in found:
+                    label = found[item['id']]
+                    item['assessment'] = dict(label['assessment'], availableAt=label['availableAt'],
+                                              version=label['version'], executionAllowed=False)
+            result['intelligence'] = summary
+        return result
+
     def status(self, instruments=(), *, source=None):
+        return self._with_assessments(self._status(instruments, source=source))
+
+    def _status(self, instruments=(), *, source=None):
         result = self.rss.status(instruments, source=source)
         if source not in (None, 'moneycontrol'):
             return result

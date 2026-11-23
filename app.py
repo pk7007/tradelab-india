@@ -65,9 +65,14 @@ from portal import Portal
 
 from dashboard_news import DashboardNews
 from integrated_news import IntegratedNews, LicensedNews
+import news_assessor
+NEWS_ASSESSOR = news_assessor.from_environment(os.environ, Path(os.environ.get('TRADELAB_NEWS_AI_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'news-assessments.sqlite'))))
 NEWS_AGENT = IntegratedNews(
     DashboardNews(Path(os.environ.get('TRADELAB_NEWS_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'news-agent.sqlite')))),
-    LicensedNews(os.environ, Path(os.environ.get('TRADELAB_SYNDICATION_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'licensed-news.sqlite')))))
+    LicensedNews(os.environ, Path(os.environ.get('TRADELAB_SYNDICATION_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'licensed-news.sqlite')))),
+    assessor=NEWS_ASSESSOR)
+# Read-only source of current items; the assessor thread only starts when explicitly enabled.
+NEWS_ASSESSOR.source = lambda: NEWS_AGENT.rss.status(getattr(MARKET, 'master', []))['items']
 PORTAL = Portal(Path(os.environ.get('TRADELAB_PORTAL_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'portal.sqlite'))))
 from paper import PaperEngine
 PAPER = PaperEngine(Path(os.environ.get('TRADELAB_PAPER_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'paper.sqlite'))))
