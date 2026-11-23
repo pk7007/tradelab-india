@@ -182,6 +182,18 @@ class ReadinessTests(Base):
         _, _, c = self.items('--calendar', str(bad))
         self.assertEqual(c['calendar']['status'], 'FAIL')
 
+    def test_stale_calendar_fails_and_pass_reports_version_and_runway(self):
+        import json
+        sample = json.loads((ROOT / 'docs' / 'infy-paper-calendar-2026-11-20.json').read_text())
+        _, _, c = self.items('--calendar', str(ROOT / 'docs' / 'infy-paper-calendar-2026-11-20.json'))
+        self.assertIn(sample['version'], c['calendar']['detail'])
+        self.assertIn('runway', c['calendar']['detail'])
+        stale = self.tmp / 'stale.json'
+        stale.write_text(json.dumps(dict(sample, availableAt='2025-01-01T00:00:00+05:30')))
+        _, _, c = self.items('--calendar', str(stale))
+        self.assertEqual(c['calendar']['status'], 'FAIL')
+        self.assertIn('stale', c['calendar']['detail'])
+
     def test_market_hours_approximate(self):
         _, _, c = self.items()
         self.assertEqual(c['market-hours']['status'], 'PASS')

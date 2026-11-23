@@ -1,4 +1,5 @@
 import copy
+import json
 import datetime as dt
 from pathlib import Path
 import tempfile
@@ -115,6 +116,50 @@ class WorkerTests(unittest.TestCase):
         calendar['sessions']['2026-01-02']['open']='2026-01-02T10:00:00+05:30'
         self.worker.start(self.account,self.instrument,calendar,True,True)
         with self.assertRaisesRegex(ValueError,'Special session'):self.worker.tick()
+        self.assertEqual(self.calls,[])
+
+    def test_arming_records_calendar_source_version_and_fingerprint(self):
+        import trading_calendar
+        self.start()
+        status=self.worker.status()
+        self.assertEqual((status['calendarVersion'],status['calendarSource']),('fixture-1','https://example.invalid/calendar'))
+        self.assertEqual(status['calendarFingerprint'],trading_calendar.fingerprint(self.calendar))
+        self.assertNotIn('calendar',status)
+
+    def test_square_off_time_comes_from_calendar_and_worker_clock_closes_position(self):
+        self.start()
+        self.assertEqual(self.worker.status()['squareOffAt'],'2026-01-02T15:15:00+05:30')
+        self.worker.tick()
+        for minutes in (1,4,1):
+            self.now+=dt.timedelta(minutes=minutes);self.worker.tick()
+        self.assertGreater(self.state()['quantity'],0)
+        for i in range(22,len(self.rows)):   # slow rise: trend holds, no stop or target can trigger
+            price=102.2+0.002*(i-22)
+            self.rows[i]=dict(self.rows[i],open=price,high=price+0.01,low=price-0.01,close=price)
+        stop=dt.datetime.fromisoformat('2026-01-02T15:26:00+05:30')
+        while self.now<stop:   # step inside the 300 s lease so ingestion is never fenced
+            self.now+=dt.timedelta(minutes=4);self.worker.tick()
+        self.assertEqual(self.state()['quantity'],0)
+        with self.engine.db() as db:
+            sells=[json.loads(r[0]) for r in db.execute('SELECT body FROM events ORDER BY seq')]
+        exits=[e for e in sells if e.get('type')=='fill' and e.get('side')=='SELL']
+        self.assertEqual(len(exits),1)
+        self.assertIn('square-off',exits[0]['reason'].lower())
+        self.assertGreaterEqual(exits[0]['bar'],'2026-01-02T15:15:00+05:30')
+        self.assertTrue(self.engine.reconcile(self.account)['matches'])
+
+    def test_arming_on_a_listed_holiday_is_allowed_and_has_no_square_off_time(self):
+        holiday=dict(self.calendar,sessions={'2026-01-02':None})
+        self.worker.start(self.account,self.instrument,holiday,True,True)
+        self.assertIsNone(self.worker.status()['squareOffAt'])
+
+    def test_stale_or_unlisted_calendar_refuses_to_arm_and_changes_nothing(self):
+        stale=dict(self.calendar,availableAt='2025-10-01T00:00:00+05:30')
+        with self.assertRaisesRegex(ValueError,'stale'):self.worker.start(self.account,self.instrument,stale,True,True)
+        unlisted=dict(self.calendar,sessions={'2026-01-05':self.calendar['sessions']['2026-01-02']})
+        with self.assertRaises(ValueError):self.worker.start(self.account,self.instrument,unlisted,True,True)
+        self.assertFalse(self.worker.status()['enabled'])
+        self.assertEqual(self.state()['status'],'paused')
         self.assertEqual(self.calls,[])
 
     def test_manual_ingestion_cannot_bypass_worker_ownership(self):

@@ -226,6 +226,12 @@ def calendar_check(path, configs, now):
         status = 'BLOCKED' if 'Session unknown' in str(exc) else 'FAIL'
         return check('calendar', 'Session calendar covers today', status, 'Calendar for %s: %s' % (today, exc),
                      'Owner: obtain an attributed manifest that lists %s explicitly (holiday = null).' % today if status == 'BLOCKED' else '')
+    import trading_calendar
+    try:
+        info = trading_calendar.validate(manifest, now.isoformat(), strict_sessions=False)
+    except trading_calendar.CalendarError as exc:
+        return check('calendar', 'Session calendar covers today', 'FAIL', 'Calendar not usable: %s' % exc,
+                     'Owner: refresh the attributed calendar from its source and review its terms of use.')
     if not session['open']:
         return check('calendar', 'Session calendar covers today', 'BLOCKED', '%s is marked as a holiday/closed in the manifest.' % today,
                      'Owner: arm on a date the manifest lists as open.')
@@ -236,8 +242,9 @@ def calendar_check(path, configs, now):
             if exit_open + dt.timedelta(minutes=5) >= close:
                 return check('calendar', 'Session calendar covers today', 'FAIL',
                              'Square-off %s for %s completes at or after the session close %s.' % (config['squareOff'], config.get('symbol', '?'), close.time().isoformat('minutes')))
-    return check('calendar', 'Session calendar covers today', 'PASS', 'Manifest lists %s as open %s-%s IST; square-off completes before close. This is attestation, not exchange verification.' % (
-        today, dt.datetime.fromisoformat(session['start']).time().isoformat('minutes'), close.time().isoformat('minutes')))
+    return check('calendar', 'Session calendar covers today', 'PASS', 'Manifest %s lists %s as open %s-%s IST; square-off completes before close; %d trading days of runway through %s. This is attestation, not exchange verification.' % (
+        info['version'], today, dt.datetime.fromisoformat(session['start']).time().isoformat('minutes'), close.time().isoformat('minutes'),
+        info['runwayTradingDays'], info['lastDate']))
 
 
 def storage_approval(env):

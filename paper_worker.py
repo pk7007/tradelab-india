@@ -12,6 +12,7 @@ import threading
 import uuid
 
 from market_contract import session_for
+import trading_calendar
 from research import IST, timestamp
 
 UTC = dt.timezone.utc
@@ -81,6 +82,8 @@ class PaperWorker:
             raise ValueError('A versioned explicit session calendar is required.')
         now=self._now();local=now.astimezone(IST)
         session_for(calendar,date=local.date().isoformat(),as_of=now.isoformat())
+        # Fail closed on a stale, special-session or malformed calendar before arming anything.
+        calendar_info=trading_calendar.validate(calendar,now.isoformat(),strict_sessions=False)
         with self.lock,self.engine.db() as db:
             s=self.engine.load(db,account_id)
             if s['config']['strategy']!='intraday-v1' or s['config']['source']!='imported' or s['config']['symbol']!=instrument['symbol']:
@@ -92,6 +95,10 @@ class PaperWorker:
                     exit_open = dt.datetime.combine(close.date(),dt.time.fromisoformat(s['config']['squareOff']),IST)
                     if exit_open + dt.timedelta(minutes=5) >= close:
                         raise ValueError('Saved square-off candle must complete strictly before each continuous-session close.')
+            try:
+                today_session=trading_calendar.require_trading_day(calendar,now.isoformat(),square_off=s['config']['squareOff'],strict_sessions=False)
+            except trading_calendar.ClosedDay:
+                today_session=None   # arming on a listed holiday is allowed; ticks then wait
             if not self.engine.reconcile_in(db,s)['matches']: raise ValueError('Paper ledger mismatch; worker cannot arm.')
             db.execute("UPDATE entry_reviews SET state='invalidated' WHERE account=? AND state='eligible'",(account_id,))
             if s.get('pending') and s['pending']['side']=='BUY':
@@ -109,7 +116,7 @@ class PaperWorker:
                 raise ValueError('First worker attachment requires a new empty account to separate prior replay.')
             epoch=(row['epoch'] if row else 0)+1
             armed=local.replace(minute=(local.minute//5)*5,second=0,microsecond=0).isoformat()
-            body=dict(accountId=account_id,instrument=dict(instrument),strategy='intraday-v1',calendar=calendar,calendarVersion=calendar['version'],armedAt=armed,heartbeat=now.isoformat(),lastAcceptedBar=s['lastBar'],state='armed',lastError=None,live=False,mode='observed-candle-paper')
+            body=dict(accountId=account_id,instrument=dict(instrument),strategy='intraday-v1',calendar=calendar,calendarVersion=calendar['version'],calendarSource=calendar_info['source'],calendarFingerprint=calendar_info['fingerprint'],squareOffAt=today_session['squareOffAt'] if today_session else None,armedAt=armed,heartbeat=now.isoformat(),lastAcceptedBar=s['lastBar'],state='armed',lastError=None,live=False,mode='observed-candle-paper')
             db.execute('INSERT OR REPLACE INTO paper_workers VALUES(?,?,?,?,?,?)',(account_id,self.owner,epoch,1,now.timestamp()+self.lease_seconds,json.dumps(body,allow_nan=False)))
             s['status']='running'
             self.engine.save(db,s,dict(type='worker-armed',detail='Explicit paper worker arm. Past observations warm up signals without new entries; no broker order.'))
