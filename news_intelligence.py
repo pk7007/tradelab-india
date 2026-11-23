@@ -73,6 +73,10 @@ def build_prompt(item: dict, allowed_symbols) -> str:
         '</article>')
 
 
+class IncompleteReply(RuntimeError):
+    """The provider stopped early (refusal or token cap); treated as unavailable."""
+
+
 def _norm(text: str) -> str:
     return ' '.join(str(text).split()).casefold()
 
@@ -130,15 +134,25 @@ def assess_items(items, complete, *, budget: Budget, clock=lambda: dt.datetime.n
 
 
 def anthropic_completer(api_key: str, model: str = 'claude-haiku-5-5',
-                        max_tokens: int = 400, timeout: float = 20.0) -> Callable[[str], str]:
-    """Build a completion function. The key is supplied by the caller and never logged."""
+                        max_tokens: int = 1024, timeout: float = 20.0) -> Callable[[str], str]:
+    """Build a completion function. The key is supplied by the caller and never logged.
+
+    No sampling parameters are sent: anthropic>=2.12 has no `temperature` argument and
+    API version 2026-10-21 rejects sampling parameters, so passing one made every call
+    fail. Thinking is left at the model default (current models think by default and
+    some reject disabling it); low effort and a 1024-token cap keep labels short.
+    """
     if not api_key or not isinstance(api_key, str):
         raise ValueError('An API key is required.')
     import anthropic  # imported lazily so the module works without the optional package
     client = anthropic.Anthropic(api_key=api_key, timeout=timeout, max_retries=1)
 
     def complete(prompt: str) -> str:
-        reply = client.messages.create(model=model, max_tokens=max_tokens, temperature=0,
+        reply = client.messages.create(model=model, max_tokens=max_tokens,
+                                       output_config={'effort': 'low'},
                                        messages=[{'role': 'user', 'content': prompt}])
+        stop = getattr(reply, 'stop_reason', None)
+        if stop in ('refusal', 'max_tokens'):
+            raise IncompleteReply(f'model stopped: {stop}')
         return ''.join(block.text for block in reply.content if getattr(block, 'type', '') == 'text')
     return complete

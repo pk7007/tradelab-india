@@ -45,6 +45,17 @@ class KillTests(unittest.TestCase):
         self.assertEqual(len(r['exitRequests']), 1)
         self.assertEqual(r['exitRequests'][0]['quantity'], 10)
 
+    def test_merged_quantity_overflow_is_rejected_not_requested(self):
+        rows = [{'symbol': 'X', 'side': 'BUY', 'quantity': 1e308}] * 2 + \
+               [{'symbol': 'Y', 'side': 'SELL', 'quantity': 5}]
+        r = self.gate.kill([], open_positions=rows)
+        self.assertEqual(r['exitRequests'], [{'symbol': 'Y', 'side': 'BUY', 'quantity': 5,
+                                              'intentOnly': True, 'submitted': False}])
+        self.assertEqual([(x['symbol'], x['reason']) for x in r['rejectedPositions']],
+                         [('X', 'Merged quantity is not finite')])
+        self.assertEqual(r['exposureStatus'], 'UNKNOWN_NOT_FLATTENED')
+        self.assertFalse(r['positionsClosed'])
+
     def test_invalid_rows_skipped_and_reported_never_raise(self):
         bad = [
             {'symbol': 'A', 'quantity': True, 'side': 'BUY'},

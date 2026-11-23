@@ -150,5 +150,56 @@ class Completer(unittest.TestCase):
         self.assertNotIn('sk-', str(caught.exception))
 
 
+def _fake_reply(text, stop_reason='end_turn'):
+    from types import SimpleNamespace as NS
+    return NS(stop_reason=stop_reason,
+              content=[NS(type='thinking', thinking=''), NS(type='text', text=text)])
+
+
+@unittest.skipUnless(__import__('importlib.util').util.find_spec('anthropic'),
+                     'optional anthropic package not installed')
+class CompleterRequestShape(unittest.TestCase):
+    """Offline: the request must bind to the installed SDK's real signature."""
+
+    def _completer(self, reply):
+        import inspect
+        from unittest import mock
+        import anthropic
+        real = inspect.signature(anthropic.resources.messages.Messages.create)
+        sent = {}
+
+        class FakeMessages:
+            def create(self, **kwargs):
+                real.bind(None, **kwargs)  # TypeError here = the SDK would reject it too
+                sent.update(kwargs)
+                return reply
+
+        class FakeClient:
+            def __init__(self, **kwargs):
+                self.messages = FakeMessages()
+
+        with mock.patch.object(anthropic, 'Anthropic', FakeClient):
+            complete = ni.anthropic_completer('sk-test-not-real')
+        return complete, sent
+
+    def test_request_is_accepted_by_the_installed_sdk_and_omits_sampling(self):
+        complete, sent = self._completer(_fake_reply('{"a": 1}'))
+        self.assertEqual(complete('prompt'), '{"a": 1}')
+        for removed in ('temperature', 'top_p', 'top_k', 'thinking'):
+            self.assertNotIn(removed, sent)
+        self.assertEqual(sent['output_config'], {'effort': 'low'})
+        self.assertGreaterEqual(sent['max_tokens'], 1024)
+
+    def test_refusal_or_truncation_is_reported_as_a_provider_failure(self):
+        for reason in ('refusal', 'max_tokens'):
+            complete, _ = self._completer(_fake_reply('{"partial', stop_reason=reason))
+            with self.assertRaises(ni.IncompleteReply) as caught:
+                complete('prompt')
+            self.assertIn(reason, str(caught.exception))
+            result = ni.assess_item(item(), complete, budget=ni.Budget(1), clock=lambda: NOW,
+                                    allowed_symbols={'INFY'})
+            self.assertEqual((result['status'], result['reason']), ('unavailable', 'IncompleteReply'))
+
+
 if __name__ == '__main__':
     unittest.main()
