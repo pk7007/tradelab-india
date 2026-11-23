@@ -5,8 +5,6 @@ extend-exclude = ["data", "updates"]
 [tool.ruff.lint]
 # Start with real defects only (syntax errors, undefined names, unused imports).
 select = ["E9", "F"]
-# Unused locals are listed in docs/tooling.md for individual review.
-ignore = ["F841"]
 
 [tool.bandit]
 exclude_dirs = ["tests", ".git", ".venv"]

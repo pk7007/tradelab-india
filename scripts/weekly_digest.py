@@ -45,7 +45,15 @@ def parse_date(value: str) -> str:
 
 
 def parse_feed(content: bytes, source: dict) -> list[dict]:
-    root = ET.fromstring(content)
+    if b"\x00" in content:
+        raise ValueError("unsupported feed encoding")
+    try:
+        text = content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise ValueError("unsupported feed encoding") from None
+    if "<!DOCTYPE" in text.upper() or "<!ENTITY" in text.upper():
+        raise ValueError("unsupported XML declaration")
+    root = ET.fromstring(text)  # nosec B314
     entries = root.findall(".//item")
     if not entries:
         entries = root.findall(".//{http://www.w3.org/2005/Atom}entry")
@@ -82,8 +90,12 @@ def parse_feed(content: bytes, source: dict) -> list[dict]:
 
 
 def fetch(source: dict) -> list[dict]:
+    if urlsplit(source["feed_url"]).scheme != "https":
+        raise ValueError("feed_url must use https")
     request = urllib.request.Request(source["feed_url"], headers={"User-Agent": USER_AGENT, "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml"})
-    with urllib.request.urlopen(request, timeout=25) as response:
+    with urllib.request.urlopen(request, timeout=25) as response:  # nosec B310
+        if urlsplit(response.url).scheme != "https":
+            raise ValueError("unexpected feed redirect")
         content = response.read(2_000_001)
     if len(content) > 2_000_000:
         raise ValueError("feed exceeded 2 MB limit")

@@ -52,7 +52,7 @@ class WorkerRuntime:
         except Exception:
             context['status']='unavailable'
         with self.engine.db() as db:
-            row=self.worker._assert(db)
+            self.worker._assert(db)
             state=self.engine.load(db,self.worker.account)
             self.engine.save(db,state,dict(type='worker-news-context',detail=context))
         self.worker._record(newsContext=context)

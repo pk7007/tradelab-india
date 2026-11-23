@@ -82,7 +82,7 @@ def rss_channel(raw: bytes):
     xml = raw.decode("utf-8-sig")
     if "<!DOCTYPE" in xml.upper() or "<!ENTITY" in xml.upper():
         raise ValueError("Unsupported RSS declaration.")
-    root = ET.fromstring(xml)
+    root = ET.fromstring(xml)  # nosec B314
     if root.tag != "rss" or root.find("channel") is None:
         raise ValueError("Expected RSS channel.")
     return root

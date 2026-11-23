@@ -93,7 +93,6 @@ def _completed(rows, interval, cutoff):
 def _portfolio(bars, signals, start, end, capital, fee_bps, slip_bps):
     """signals[i] was determined before open i. Both legs end flat at the final open."""
     fee_rate = fee_bps / 10000
-    slip_rate = slip_bps / 10000
     cash = peak = capital
     fees = slippage = basis = drawdown = 0.0
     quantity = trades = wins = active = 0

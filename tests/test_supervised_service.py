@@ -63,7 +63,7 @@ class SupervisedTests(unittest.TestCase):
         self.assertEqual(len(dashboard.status()['items']),1)
 
     def test_retirement_cancels_queue_and_cannot_self_reactivate(self):
-        identity=self.service.enqueue(self.task())
+        self.service.enqueue(self.task())
         self.service.lifecycle('strategy-research.analysis','retired','Operator retirement')
         self.assertEqual(self.service.status()['tasks'][0]['state'],'cancelled')
         with self.assertRaises(ValueError):self.service.lifecycle('strategy-research.analysis','active','Retry')

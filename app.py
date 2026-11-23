@@ -136,7 +136,7 @@ def kite_request(path: str, token: str, *, method: str = "GET", form: dict[str, 
         headers["Content-Type"] = "application/x-www-form-urlencoded"
     request = urllib.request.Request(f"{KITE_API}{path}", data=data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(request, timeout=15) as response:
+        with urllib.request.urlopen(request, timeout=15) as response:  # nosec B310
             payload = json.loads(response.read(2_000_000).decode("utf-8"))
     except urllib.error.HTTPError as exc:
         # Provider bodies may echo account details, request URLs, or credentials.
@@ -820,7 +820,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=15) as response:
+            with urllib.request.urlopen(request, timeout=15) as response:  # nosec B310
                 payload = json.loads(response.read(256_000).decode("utf-8"))
             if payload.get("status") != "success" or not payload.get("data", {}).get("access_token"):
                 raise KiteError("Kite Connect did not return an access token.")

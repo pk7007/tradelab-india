@@ -17,6 +17,14 @@ class AnnouncementTests(unittest.TestCase):
         for raw in (b'<!DOCTYPE rss><rss/>',b' '*3_000_001):
             with self.assertRaises(ValueError):parse_feed(raw,dt.datetime.now(dt.timezone.utc))
 
+    def test_non_utf8_declarations_and_case_variants_rejected(self):
+        body='<?xml version="1.0"?><!DOCTYPE rss [<!ENTITY a "aaaa">]><rss><channel><item><title>&a;</title></item></channel></rss>'
+        entity_only='<rss><!ENTITY a "b"></rss>'
+        cases=[body.encode('utf-16'),body.encode('utf-16-le'),body.encode('utf-16-be'),body.replace('DOCTYPE','doctype').encode(),entity_only.encode(),entity_only.lower().encode(),b'<rss>\x00</rss>',b'<rss>\xff\xfe</rss>']
+        for raw in cases:
+            with self.subTest(raw=raw[:20]):
+                with self.assertRaises(ValueError):parse_feed(raw,dt.datetime.now(dt.timezone.utc))
+
     def test_failure_cached_and_old_evidence_explicitly_stale(self):
         feed=Announcements();feed.items=[dict(id='x',title='Demo',symbols=[])];feed.at='earlier'
         with patch('announcements.urllib.request.urlopen',side_effect=TimeoutError) as fetch:

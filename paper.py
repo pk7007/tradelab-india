@@ -484,7 +484,7 @@ class PaperEngine:
                     continue
                 if day != s['day']:
                     s.update(day=day, dayStartEquity=s['equity'], dayLoss=0, riskHalted=False)
-                c = s['config']; fee = c['costBps']/10000; slip = c['slippageBps']/10000
+                c = s['config']
                 opening_equity = s['cash']+s['quantity']*bar['open']
                 if s['dayStartEquity']-opening_equity >= c['dailyLossLimit']: s['riskHalted'] = True
                 intent = s['pending']; s['pending'] = None

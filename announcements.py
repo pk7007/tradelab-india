@@ -15,9 +15,11 @@ FEED='https://nsearchives.nseindia.com/content/RSS/Online_announcements.xml'
 
 
 def parse_feed(raw, received):
-    if len(raw)>3_000_000 or b'<!DOCTYPE' in raw.upper() or b'<!ENTITY' in raw.upper():
-        raise ValueError('Unsupported or oversized feed.')
-    root=ET.fromstring(raw)
+    if len(raw)>3_000_000 or b'\x00' in raw: raise ValueError('Unsupported or oversized feed.')
+    try: text=raw.decode('utf-8-sig')
+    except UnicodeDecodeError: raise ValueError('Unsupported or oversized feed.') from None
+    if '<!DOCTYPE' in text.upper() or '<!ENTITY' in text.upper(): raise ValueError('Unsupported or oversized feed.')
+    root=ET.fromstring(text)  # nosec B314
     if root.tag!='rss': raise ValueError('Expected RSS feed.')
     items=[];seen=set()
     for node in root.findall('./channel/item')[:1000]:
@@ -54,7 +56,7 @@ class Announcements:
                 self.checked=time.monotonic()
                 try:
                     req=urllib.request.Request(FEED,headers={'User-Agent':'TradeLabIndia/1.0 personal RSS reader','Accept':'application/rss+xml,application/xml'})
-                    with urllib.request.urlopen(req,timeout=15) as response:
+                    with urllib.request.urlopen(req,timeout=15) as response:  # nosec B310
                         if response.url!=FEED: raise ValueError('Unexpected feed redirect.')
                         raw=response.read(3_000_001)
                     received=dt.datetime.now(dt.timezone.utc)
