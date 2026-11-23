@@ -1,0 +1,40 @@
+name: Weekly status report
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Monday 04:00 UTC. Report only: no commit, no push, no secrets, no broker access.
+    - cron: "0 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install checking tools
+        run: pip install -r requirements-dev.txt
+      - name: Build offline status report
+        run: python scripts/project_report.py --write
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: status-report
+          path: reports/
+          if-no-files-found: warn
+      # Runs after the upload so the report is kept even when it says FAIL.
+      # The verdict is also written to the job summary ($GITHUB_STEP_SUMMARY) by the script.
+      - name: Fail the job when the report status is FAIL
+        run: "grep -q '^Overall status: PASS$' reports/status-*.md"

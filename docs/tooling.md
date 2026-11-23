@@ -15,3 +15,6 @@
 ## Open items
 - `defusedxml` could replace the DOCTYPE/ENTITY pre-checks later; not required now.
 - The pre-commit hook versions were not run in this environment.
+
+## Status report (scripts/project_report.py)
+Offline Markdown report (--write gives reports/status-YYYY-MM-DD.md, an ignored directory; weekly CI artifact in .github/workflows/status-report.yml). Overall status is PASS only if every present check passes. paper_readiness BLOCKED items are listed with their owner actions and are not failures. A readiness FAIL whose only failing item is the missing kiteconnect package is shown as FAILED (environment) and does not fail the overall status, because the CI report installs only requirements-dev.txt; any other readiness FAIL (live lock, corrupt ledger, worker armed by default) fails the report. The report never rates strategy performance.

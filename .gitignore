@@ -32,3 +32,6 @@ backend/target/
 frontend/node_modules/
 frontend/dist/
 backend/.env
+
+# Generated status reports (never committed)
+reports/
