@@ -52,6 +52,23 @@ retries. The primary screen shows actual role execution. These retrospective
 checks do not yet gate every trading handoff before entry. See
 [intraday automation](intraday-automation.md) for the implemented scope and limits.
 
+### Phase A subset (lineage store and entry gate)
+
+`lineage_store.py` persists each entry handoff task durably (source, source version, observed and
+available times, input hash, parents, revision, state). Records are append-only; a changed outcome for the
+same input becomes a new revision and the old one is marked superseded. Review defects are counted per
+account and domain; repeated defects quarantine the domain until a clean probation, with history kept.
+`entry_gate.py` blocks NEW paper entries only, when required evidence failed review, is missing, was
+available after the decision time, has a lineage gap, or is quarantined. Exits, square-off, exposure
+reporting and reconciliation never call it. A lineage-store failure blocks the new entry and is logged.
+
+Knowingly out of scope for this subset: only the five existing entry stages are covered
+(instrument-reference, historical-candles, technical-indicators, position-sizing, trade-risk). Market
+research, issuer/event mapping, long-term research, reconciliation, reporting and improvement roles are not
+yet recorded in the lineage. There is no periodic review, no dashboard stage view and no retention policy
+for the lineage table. Square-off is covered only indirectly: the tests prove a stop exit and reconciliation
+run when the lineage store fails; a square-off-specific test is an accepted gap and the next useful check. These remain requirements above.
+
 AGENTS.md establishes the Codex development review workflow for subsequent work
 in this repository. It is read by coding agents that support project instructions.
 Runtime continuous review requires application implementation and operational

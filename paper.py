@@ -13,6 +13,11 @@ import intraday_contract
 from entry_review import EntryReviewer, VERSION as ENTRY_REVIEW_VERSION, digest, evaluate, IDENTITIES
 from agent_handlers import execute as workflow_handler
 from trade_workflow import entry_handoffs
+import entry_gate
+import lineage_store
+import logging
+
+LOG=logging.getLogger(__name__)
 
 
 class PaperEngine:
@@ -27,6 +32,7 @@ class PaperEngine:
             CREATE TABLE IF NOT EXISTS bars(account TEXT NOT NULL, stamp TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(account,stamp));
             CREATE TABLE IF NOT EXISTS receipts(account TEXT NOT NULL, stamp TEXT NOT NULL, received TEXT NOT NULL, source TEXT NOT NULL, instrument TEXT NOT NULL, PRIMARY KEY(account,stamp));
             CREATE TABLE IF NOT EXISTS entry_reviews(id TEXT PRIMARY KEY,account TEXT NOT NULL,state TEXT NOT NULL,body TEXT NOT NULL);''')
+            lineage_store.ensure_schema(db)
             db.execute("UPDATE entry_reviews SET state='invalidated' WHERE state='eligible'")
             for row in db.execute('SELECT id,body FROM accounts').fetchall():
                 state = json.loads(row['body'])
@@ -361,8 +367,17 @@ class PaperEngine:
             handoffs=dict(version='intraday-handoffs-v1',state='blocked',tasks=[],reason='Required handoff evidence unavailable.')
         if handoffs['state']!='reviewed' and decision['status']=='eligible':
             decision.update(status='temporarily-blocked',reason='Required agent handoff did not pass; no BUY authorized.',maxQuantity=0)
+        # Durable lineage and the entry-only gate; exits and reconciliation never call this.
+        try:
+            lineage_store.record_handoffs(db,handoffs,now=reviewed.isoformat())
+            gate=entry_gate.check_entry(db,handoffs.get('finalTaskId'),reviewed.isoformat())
+        except Exception as error:
+            LOG.warning('Lineage gate unavailable (%s); new entry blocked.',type(error).__name__)
+            gate=dict(allowed=False,reasons=['Lineage store unavailable (%s).'%type(error).__name__],lineage=[])
+        if not gate['allowed'] and decision['status']=='eligible':
+            decision.update(status='temporarily-blocked',reason=('Lineage gate: '+gate['reasons'][0])[:500],maxQuantity=0)
         review={**evidence,**decision,'reviewId':review_id,'version':ENTRY_REVIEW_VERSION,
-                'handoffs':handoffs,
+                'handoffs':handoffs,'lineage':gate,
                 'evidenceHash':digest(evidence),'expiresAt':expires.isoformat()}
         review['reviewedAt']=reviewed.isoformat()
         db.execute('INSERT INTO entry_reviews VALUES(?,?,?,?)',
