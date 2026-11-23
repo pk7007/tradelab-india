@@ -47,6 +47,8 @@ jobs:
           python -m py_compile agent_catalog.py agent_handlers.py agent_service.py auto_selector.py desk_coordinator.py experiment_registry.py
           python -m py_compile fundamental_research.py intraday_session.py nse_filings.py observed_forward.py session_evidence.py storage_ops.py
           python -m py_compile scripts/structure_check.py scripts/project_report.py
+          python -m py_compile scripts/benchmark_agents.py scripts/check_intraday_ui.py scripts/check_research.py scripts/fixture_recovery.py scripts/loss_audit.py scripts/paper_research_batch.py
+          python -m py_compile api_rate_limits.py broker_transport.py execution_controls.py market_observations.py transaction_costs.py
       - name: Account calculation regression tests
         run: |
           node tests/account.test.js
