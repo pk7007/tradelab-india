@@ -2,8 +2,6 @@
 import datetime as dt
 import math
 import random
-import statistics
-import secrets
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from research import timestamp, validate_rows
 

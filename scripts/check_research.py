@@ -1,6 +1,5 @@
 """Run offline checks and write an auditable report; no broker calls."""
 import datetime as dt
-import io
 import json
 from pathlib import Path
 import sys

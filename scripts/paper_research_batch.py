@@ -11,7 +11,6 @@ import json
 from pathlib import Path
 import sqlite3
 import sys
-import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
