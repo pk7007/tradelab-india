@@ -1,2 +1,2 @@
 # Optional: model-assisted news assessment (news_intelligence.anthropic_completer)
-anthropic>=0.40,<3
+anthropic>=2.12.0,<3
