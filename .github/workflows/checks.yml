@@ -26,7 +26,7 @@ jobs:
         run: pip-audit -r requirements.txt
       - name: Syntax checks
         run: |
-          python -m py_compile app.py paper.py evaluation.py trader_suite.py automation.py market_data.py research.py validation_lab.py scripts/weekly_digest.py
+          python -m py_compile app.py paper.py evaluation.py trader_suite.py automation.py market_data.py research.py validation_lab.py scripts/weekly_digest.py scripts/paper_readiness.py
           python -m py_compile paper_worker.py worker_runtime.py broker_snapshot.py news_agent.py dashboard_news.py
           python -m py_compile syndication_transport.py integrated_news.py strategy_contract.py entry_review.py
           python -m py_compile announcements.py research_context.py syndication.py portal.py execution_journal.py intraday_contract.py intraday_evaluation.py market_contract.py evidence.py
