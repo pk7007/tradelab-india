@@ -13,7 +13,7 @@ import sys
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from scripts.batch_loss_audit import accounting, churn, metrics
-from scripts.data_quality_audit import audit_rows, session_spec, CAS_SOURCE
+from scripts.data_quality_audit import audit_rows, CAS_SOURCE
 from intraday_evaluation import evaluate_intraday
 
 
