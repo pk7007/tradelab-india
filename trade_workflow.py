@@ -35,7 +35,8 @@ def entry_handoffs(evidence, config, bar, cash, instrument, decision, handler=ex
                                   owner=evidence['workerOwner'], epoch=evidence['workerEpoch']))
         task = dict(taskId=fingerprint, inputHash=digest(payload), accountId=evidence['accountId'],
                     session=evidence['session'], domain=domain, sourceVersion=VERSION,
-                    availableAt=common['availableAt'], parents=[parent] if parent else [],
+                    availableAt=common['availableAt'], source=common['source'], observedAt=common['observedAt'],
+                    parents=[parent] if parent else [],
                     capability=domain+'.analysis', reviewer=domain+'.independent-review',
                     state='blocked', executionAllowed=False)
         if allowed and gate:
