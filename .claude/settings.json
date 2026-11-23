@@ -1,0 +1,18 @@
+{
+  "env": {
+    "ENABLE_TOOL_SEARCH": "auto:5",
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "75"
+  },
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./data/private/**)",
+      "Read(./data/**/*.csv)",
+      "Read(./**/*.parquet)",
+      "Read(./**/*.log)",
+      "Read(./.venv/**)",
+      "Read(./node_modules/**)"
+    ]
+  }
+}
