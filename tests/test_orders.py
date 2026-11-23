@@ -2,6 +2,7 @@
 import ast
 import http.server
 import hashlib
+import hmac
 import json
 import math
 import threading
@@ -72,6 +73,29 @@ class OrderTests(unittest.TestCase):
         h.kite_callback({'state':['fixture-state'],'status':['success'],'request_token':['fixture-token']})
         h.redirect.assert_called_once_with('/?notice=login_state_error')
 
+    def _callback(self, fetch):
+        h=self.handler();h.redirect=Mock();session={'oauth_state':'s','oauth_created':time.monotonic()}
+        h.session=lambda:('id',session)
+        with patch('broker_transport.fetch_json',fetch), patch.dict(namespace,API_KEY='fixture-key',API_SECRET='fixture-secret',hmac=hmac,urllib=urllib,json=json,
+                           KITE_API='https://api.kite.trade',AUTO_SELECTOR=SimpleNamespace(enabled=False,profile=None)), \
+                patch('urllib.request.urlopen',side_effect=AssertionError('plain urlopen must not be used')):
+            h.kite_callback({'state':['s'],'status':['success'],'request_token':['fixture-token']})
+        return h,session
+
+    def test_oauth_token_exchange_uses_hardened_transport(self):
+        fetch=Mock(return_value={'status':'success','data':{'access_token':'tok','user_id':'U1'}})
+        h,session=self._callback(fetch)
+        request=fetch.call_args.args[0]
+        self.assertEqual(request.full_url,'https://api.kite.trade/session/token')
+        h.redirect.assert_called_once_with('/?notice=connected')
+        self.assertEqual(session['access_token'],'tok')
+
+    def test_oauth_token_exchange_failure_is_generic(self):
+        for failure in (urllib.error.HTTPError('https://api.kite.trade/session/token',302,'x',{},io.BytesIO(b'')),ValueError('Broker response changed its destination.')):
+            h,session=self._callback(Mock(side_effect=failure))
+            h.redirect.assert_called_once_with('/?notice=login_failed')
+            self.assertNotIn('access_token',session)
+
     def test_idle_session_is_revoked_and_capacity_is_bounded(self):
         h=self.handler();h.headers={'Cookie':'tradelab_session=expired'}
         expired={'csrf':'old','access_token':'secret','last_seen':time.monotonic()-1801}
@@ -85,17 +109,19 @@ class OrderTests(unittest.TestCase):
     def test_provider_error_bodies_never_reach_user(self):
         # Capture real wrapper before the handler tests replace namespace kite_request.
         source_tree=ast.parse((Path(__file__).resolve().parents[1]/'app.py').read_text())
-        local=dict(namespace,urllib=urllib,json=json,API_KEY='fixture',KITE_API='https://fixture.invalid')
+        local=dict(namespace,urllib=urllib,json=json,API_KEY='fixture',KITE_API='https://api.kite.trade')
         function=next(n for n in source_tree.body if isinstance(n,ast.FunctionDef) and n.name=='kite_request')
         exec(compile(ast.Module(body=[function],type_ignores=[]),'app.py','exec'),local)
         error=urllib.error.HTTPError('https://fixture.invalid?token=secret',400,'secret',{},io.BytesIO(b'{"message":"secret"}'))
-        with patch.object(urllib.request,'urlopen',side_effect=error):
+        with patch('broker_transport.urllib.request.build_opener') as opener:
+            opener.return_value.open.side_effect=error
             with self.assertRaises(namespace['KiteError']) as captured:
                 local['kite_request']('/orders','fixture-token')
         self.assertNotIn('secret',str(captured.exception))
-        response=Mock();response.read.return_value=b'{"status":"error","message":"secret"}'
+        response=Mock();response.geturl.return_value='https://api.kite.trade/orders';response.read.return_value=b'{"status":"error","message":"secret"}'
         response.__enter__=Mock(return_value=response);response.__exit__=Mock(return_value=False)
-        with patch.object(urllib.request,'urlopen',return_value=response):
+        with patch('broker_transport.urllib.request.build_opener') as opener:
+            opener.return_value.open.return_value=response
             with self.assertRaises(namespace['KiteError']) as captured:
                 local['kite_request']('/orders','fixture-token')
         self.assertNotIn('secret',str(captured.exception))

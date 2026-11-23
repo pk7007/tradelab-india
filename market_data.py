@@ -11,6 +11,7 @@ from pathlib import Path
 import secrets
 import threading
 import time
+from market_observations import TickGuard
 
 IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
 INTERVALS = {'minute', '3minute', '5minute', '10minute', '15minute', '30minute', '60minute', 'day'}
@@ -57,7 +58,9 @@ def clean_candles(rows):
 
 
 class MarketData:
-    def __init__(self, api_key, root):
+    def __init__(self, api_key, root, *, clock=None, start_reaper=True):
+        self.clock = clock or (lambda: dt.datetime.now(dt.timezone.utc))
+        self.reaper_stop = threading.Event()
         self.api_key = api_key
         self.root = Path(root)
         self.lock = threading.RLock()
@@ -72,7 +75,8 @@ class MarketData:
         self.stream_generation = None
         self.stream_state = {'state':'stopped','points':[], 'lastTick':None}
         self.stream_activity = 0.0
-        threading.Thread(target=self._reaper, daemon=True).start()
+        if start_reaper:
+            threading.Thread(target=self._reaper, daemon=True).start()
 
     def client(self, token):
         from kiteconnect import KiteConnect
@@ -226,22 +230,25 @@ class MarketData:
                     self.stream_state['state']=value
         def on_connect(ws,response):
             ws.subscribe([instrument['instrument_token']]); ws.set_mode(ws.MODE_FULL,[instrument['instrument_token']]); state('connected')
+        guard=TickGuard(instrument['instrument_token'])
         def on_ticks(ws,ticks):
             with self.lock:
                 if self.stream_generation!=generation: return
+                received=self.clock()
+                if not isinstance(ticks,(list,tuple)) or len(ticks)>1000:
+                    guard.reject('invalid-batch')
+                    self.stream_state['tickHealth']=guard.status()
+                    return
                 for tick in ticks:
-                    if tick['instrument_token']!=instrument['instrument_token']: continue
-                    received=dt.datetime.now(dt.timezone.utc).isoformat()
-                    stamp=tick.get('exchange_timestamp')
-                    trade_stamp=tick.get('last_trade_time')
-                    # Kite SDK returns exchange timestamps as naive local datetimes on some versions.
-                    self.stream_state['points'].append({'date':received,'close':tick['last_price']})
+                    point=guard.observe(tick,received)
+                    if point is None:
+                        continue
+                    self.stream_state['points'].append(point)
                     self.stream_state['points']=self.stream_state['points'][-1000:]
-                    # The SDK uses datetime.fromtimestamp for these epoch fields (local wall time).
-                    self.stream_state.update(lastTick=received,
-                        exchangeTimestamp=stamp.astimezone(dt.timezone.utc).isoformat() if stamp else None,
-                        tradeTimestamp=trade_stamp.astimezone(dt.timezone.utc).isoformat() if trade_stamp else None,
-                        state='connected')
+                    self.stream_state.update(lastTick=point['date'],
+                        exchangeTimestamp=point['exchangeTimestamp'],
+                        tradeTimestamp=point['tradeTimestamp'],state='connected')
+                self.stream_state['tickHealth']=guard.status()
         ticker.on_connect=on_connect
         ticker.on_ticks=on_ticks
         ticker.on_close=lambda ws,code,reason:state('disconnected')
@@ -256,7 +263,7 @@ class MarketData:
             if self.stream_owner != owner:
                 return {'state':'stopped','points':[],'lastTick':None}
             self.stream_activity=time.monotonic()
-            now=dt.datetime.now(dt.timezone.utc)
+            now=self.clock()
             stamps=[self.stream_state.get(k) for k in ('lastTick','exchangeTimestamp','tradeTimestamp')]
             fresh=self.stream_state['state']=='connected' and all(
                 value and 0 <= (now-dt.datetime.fromisoformat(value)).total_seconds() <= 15 for value in stamps)
@@ -273,12 +280,18 @@ class MarketData:
                 ticker.close()
 
     def _reaper(self):
-        while True:
-            time.sleep(15)
+        while not self.reaper_stop.wait(15):
             with self.lock:
                 owner=self.stream_owner
                 if owner and time.monotonic()-self.stream_activity>90:
                     self.stop_stream(owner)
+
+    def close(self):
+        self.reaper_stop.set()
+        with self.lock:
+            owner=self.stream_owner
+        if owner:
+            self.stop_stream(owner)
 
 
 def synthetic_research(values):
