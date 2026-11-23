@@ -1,0 +1,8 @@
+# Token-saving hint list. Claude Code does not read this file; enforcement is via permissions.deny in .claude/settings.json (Read tool only, not Bash cat).
+data/
+!data/digest-sources.json
+*.csv
+*.parquet
+*.log
+.venv/
+node_modules/
