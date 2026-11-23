@@ -3,6 +3,9 @@
 **An AI-assisted, automated paper-trading bot for Indian markets, built on Zerodha Kite Connect. Supervised live automation is the goal, and it is locked.**
 
 [![Offline application checks](https://github.com/pk7007/tradelab-india/actions/workflows/checks.yml/badge.svg)](https://github.com/pk7007/tradelab-india/actions/workflows/checks.yml)
+![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
+![Mode: paper only](https://img.shields.io/badge/mode-paper%20only-orange)
+![Live orders: locked](https://img.shields.io/badge/live%20orders-locked-red)
 
 TradeLab is a trading bot you run on your own computer. It reads completed Zerodha candles, applies a rule-based intraday strategy with cost-aware sizing, modelled stops, targets and square-off, and runs the whole session automatically as **paper trades** once you arm it. AI agents read Indian market news and label it as research context. Deterministic risk rules, not a model, make every decision. Evaluation, risk planning and a browser dashboard show the assumptions behind each idea: the data used, the costs charged, the risks modelled and the evidence still missing.
 
@@ -10,6 +13,18 @@ The long-term aim is a supervised, real-money auto trader. This release is not t
 
 > **Status: automated paper trading with AI news research. It does not place real orders and is not yet a live trading bot.**
 > Live order dispatch is locked by a hard-coded constant (`LIVE_EXECUTION_READY = False` in `app.py`). No setting, environment variable or API key can unlock it in this release. No profitability has been measured or claimed. Nothing here is investment advice.
+
+## At a glance
+
+| | |
+| --- | --- |
+| **Market** | NSE equities, via Zerodha Kite Connect (read-only data) |
+| **Mode** | Automated **paper** trading with modelled fills; live dispatch locked in code |
+| **Decision maker** | Deterministic, rule-based strategy and risk gates. AI is research context only |
+| **AI role** | Optional news labelling with call caps, schema validation and verbatim-quote checks |
+| **Stack** | Python 3.10+, SQLite, vanilla JavaScript UI, no framework dependencies beyond `kiteconnect` and `pydantic` |
+| **Quality** | 646 Python tests, 10 JavaScript test files, ruff, bandit, gitleaks and a structure check on every push |
+| **Data** | Stays on your machine. No market data is bundled, nothing is sent anywhere except Kite and the news sources you enable |
 
 [Quick start](#quick-start) · [What it does](#what-it-does) · [Safety model](#safety-model) · [Architecture](#architecture) · [Development](#development-and-checks) · [Status](#current-status-and-known-limits) · [Roadmap](#roadmap) · [Docs](#documentation)
 
@@ -27,6 +42,8 @@ The long-term aim is a supervised, real-money auto trader. This release is not t
 | **Optional AI news labels** | Off by default. With `TRADELAB_NEWS_AI=true` and an Anthropic key, a model labels current items (sentiment, event type, confidence). Quotes must match the article text, symbols must come from an allow-list, daily and per-cycle call caps apply, and only ids and labels are stored. | Labels carry `executionAllowed: false`. They cannot authorise or size an order. |
 | **Agent catalogue and desk** | A registry of 16 implemented review responsibilities across 32 domains, with a coordinator, alerts and operations health. | Evidence checks, not trading agents. No model controls funds or risk. |
 | **Broker workspace** | Account overview, holdings, positions, order book, quotes, historical candles and a manual order review flow (`/advanced`). | Read-only after you log in. Dispatch is locked. |
+| **Entry gate and lineage** | A durable, append-only lineage store records each task's inputs, availability times and review state. `entry_gate.py` blocks only **new** entries in the managed paper worker when required evidence is failed, missing, late or quarantined. | Exits, square-off, exposure reporting and reconciliation never call it. A store failure blocks entries (fail closed), never exits. |
+| **Execution controls** | Per-account guard, kill, protection and clock controls on the mock execution coordinator. Hardened broker transport: fixed HTTPS origin, no redirects, bounded JSON. Tick validation is used by the market-data stream. | Offline and mock only. Controls can block entries; they never relax limits. A transaction-cost model (`transaction_costs.py`) and API rate limits (`api_rate_limits.py`) are implemented and tested but **not yet wired into the runtime**. |
 | **Kill and recovery paths** | `ResearchRiskGate.kill()` always returns cancel requests and exit *intents*. Fixture replay proves paper recovery across process restarts. | Nothing calls `kill()` with real positions yet. It never reports "flattened". |
 
 ## Quick start
@@ -129,6 +146,8 @@ flowchart LR
 | `evaluation.py`, `strategy_contract.py`, `experiment_registry.py`, `validation_lab.py` | Fixed-rule evaluation, shared assumptions, result provenance, stress simulation |
 | `indicators.py`, `ema_adx_strategy.py` | Research-only EMA/ADX indicators and signal |
 | `research.py`, `trader_suite.py`, `portal.py` | Risk gate and `kill()`, planning tools, portal research |
+| `lineage_store.py`, `entry_gate.py` | Evidence lineage and the entry-only gate |
+| `execution_controls.py`, `broker_transport.py`, `market_observations.py`, `transaction_costs.py`, `api_rate_limits.py` | Mock execution controls, hardened broker HTTP and tick validation (wired in); cost model and rate limits (tested library code, not yet wired in) |
 | `news_agent.py`, `announcements.py`, `integrated_news.py`, `nse_filings.py` | Feed collection, NSE announcement parsing, source mapping |
 | `news_intelligence.py`, `news_assessor.py` | Optional, capped, schema-validated model labels |
 | `agent_*.py`, `desk_coordinator.py`, `operations.py`, `operational_alerts.py` | Review-role registry, coordinator, health and alerts |
@@ -148,10 +167,11 @@ for f in tests/*.test.js; do node "$f"; done            # JavaScript tests
 ruff check .                                             # defects only (E9, F)
 bandit -q -r . -c pyproject.toml --severity-level high   # security scan
 python scripts/structure_check.py                        # read-only repository integrity check
+gitleaks git --redact --config .gitleaks.toml .          # secret scan (needs gitleaks installed)
 python scripts/project_report.py                         # dated Markdown status report
 ```
 
-Measured on 23 November 2026: **617 Python tests pass** (567 subtests), all **10 JavaScript test files pass**, `ruff` and `bandit` are clean and the structure check reports 0 integrity failures. GitHub Actions ([`checks.yml`](.github/workflows/checks.yml)) runs the syntax, lint, security, test, fixture-recovery and structure steps on every push. A weekly, read-only [status report](.github/workflows/status-report.yml) uploads a report as a build artifact. Dependabot and pre-commit are configured. See [tooling](docs/tooling.md).
+Measured on 23 November 2026 at the latest `master`: **646 Python tests pass** (567 subtests), all **10 JavaScript test files pass**, `ruff` is clean, and the structure check reports 0 integrity failures. GitHub Actions ([`checks.yml`](.github/workflows/checks.yml)) runs the syntax, lint, security (bandit and a gitleaks scan of the full history), test, fixture-recovery and structure steps on every push. A weekly, read-only [status report](.github/workflows/status-report.yml) uploads a report as a build artifact. Dependabot and pre-commit are configured. See [tooling](docs/tooling.md).
 
 These checks verify software behaviour. They do not establish profitability or production readiness.
 
