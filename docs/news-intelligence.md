@@ -33,6 +33,15 @@ a result with `executionAllowed: false`.
   availableAt, executionAllowed=false) plus an `intelligence` summary.
 - The private store `news-assessments.sqlite` holds ids and labels only: no article text, no quote
   (a hash instead) and no free-text rationale.
+- Storage is created lazily on first use (never at import or construction), so an unwritable data
+  directory cannot stop the app. If storage cannot be opened, `intelligence.status` is `unavailable`
+  with a short `reason`, labels are omitted and `tick` never raises; a locked database keeps the
+  status and reports `reason` "busy". A deleted database file is recreated on the next call.
+- A service that is not enabled (`disabled`, `missing-key`, `missing-package`) never touches disk, so
+  it does not show labels stored by an earlier enabled run. Trade-off: no file or directory is created
+  for a feature that is off; re-enable the service to see old labels again.
+- Reads (`/api/news-agent`) never wait for a provider call; `tick` is single-flight and a second
+  concurrent tick is skipped.
 - The portal news list shows each label (sentiment, confidence, event type) as an "Automatic research label (not advice)" line, plus a one-line intelligence status (web/portal.js; tests/news-labels.test.js).
 
 ## Not yet done

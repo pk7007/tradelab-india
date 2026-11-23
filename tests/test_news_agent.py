@@ -62,6 +62,13 @@ class NewsAgentTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 parse_et(raw, NOW)
 
+    def test_rss_channel_accepts_latin1_and_reports_encoding_error_name(self):
+        from news_agent import rss_channel
+        self.assertEqual(rss_channel('<?xml version="1.0" encoding="ISO-8859-1"?><rss><channel><title>Caf\xe9</title></channel></rss>'.encode("latin-1")).find("channel/title").text, "Caf\xe9")
+        with self.assertRaises(ValueError) as caught:
+            rss_channel(b'<?xml version="1.0" encoding="koi8-r"?><rss>\xe9</rss>')
+        self.assertEqual(type(caught.exception).__name__, "FeedEncodingError")
+
     def test_old_items_filtered_and_summary_is_plain_text(self):
         self.raw = feed(date="Wed, 18 Nov 2026 09:00:00 +0000")
         self.assertEqual(self.agent().poll_once()["items"], [])

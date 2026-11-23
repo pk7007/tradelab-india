@@ -25,6 +25,19 @@ class AnnouncementTests(unittest.TestCase):
             with self.subTest(raw=raw[:20]):
                 with self.assertRaises(ValueError):parse_feed(raw,dt.datetime.now(dt.timezone.utc))
 
+    def test_latin1_feed_parses_and_other_encodings_are_distinct_errors(self):
+        now=dt.datetime.fromisoformat('2026-11-19T11:00:00+05:30')
+        item='<item><title>Caf\xe9 Ltd dividend</title><link>https://nsearchives.nseindia.com/a.pdf</link><pubDate>19-Nov-2026 10:00:00</pubDate></item>'
+        for enc in ('ISO-8859-1','windows-1252'):
+            raw=('<?xml version="1.0" encoding="%s"?><rss><channel>%s</channel></rss>'%(enc,item)).encode('latin-1')
+            self.assertEqual(parse_feed(raw,now)[0]['title'],'Caf\xe9 Ltd dividend')
+        hostile=b'<?xml version="1.0" encoding="ISO-8859-1"?><!DOCTYPE rss [<!ENTITY a "b">]><rss>\xe9</rss>'
+        with self.assertRaisesRegex(ValueError,'oversized'):parse_feed(hostile,now)
+        for raw in (b'<?xml version="1.0" encoding="koi8-r"?><rss>\xe9</rss>',b'<rss>\xe9</rss>',b'<?xml version="1.0" encoding="utf-8"?><rss>\xe9</rss>',
+                    '<?xml version="1.0" encoding="utf-16"?><rss/>'.encode('utf-16')):
+            with self.subTest(raw=raw[:30]):
+                with self.assertRaisesRegex(ValueError,'encoding'):parse_feed(raw,now)
+
     def test_failure_cached_and_old_evidence_explicitly_stale(self):
         feed=Announcements();feed.items=[dict(id='x',title='Demo',symbols=[])];feed.at='earlier'
         with patch('announcements.urllib.request.urlopen',side_effect=TimeoutError) as fetch:

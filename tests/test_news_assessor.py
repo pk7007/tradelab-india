@@ -208,3 +208,133 @@ class HubMerge(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class LazyStorageTests(unittest.TestCase):
+    def test_disabled_service_never_touches_disk(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'sub' / 'a.sqlite'
+            svc = na.NewsAssessor(path)
+            self.assertEqual(svc.assessments_for([item()]), {})
+            self.assertEqual(svc.summary()['status'], 'disabled')
+            svc.tick([item()])
+            self.assertFalse(path.parent.exists())
+
+    def test_unwritable_path_never_raises(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            blocker = Path(tmp) / 'file'
+            blocker.write_text('x')
+            path = blocker / 'a.sqlite'
+            svc = na.NewsAssessor(path, complete=lambda *a, **k: REPLY, enabled=True)
+            svc.tick([item()])
+            self.assertEqual(svc.assessments_for([item()]), {})
+            self.assertEqual(svc.assessments(), {})
+            summary = svc.summary()
+            self.assertEqual(summary['status'], 'unavailable')
+            self.assertIn('reason', summary)
+
+    def test_malformed_result_does_not_raise_in_integrated_news(self):
+        news = IntegratedNews.__new__(IntegratedNews)
+        news.assessor = na.NewsAssessor(Path(tempfile.gettempdir()) / 'nope-never-created' / 'a.sqlite')
+        self.assertEqual(news._with_assessments({'items': None}).get('items'), None)
+
+
+class ConcurrencyAndRecoveryTests(unittest.TestCase):
+    def make(self, tmp, complete=None, name='a.sqlite'):
+        return na.NewsAssessor(Path(tmp) / name, complete=complete or (lambda *a, **k: REPLY), enabled=True)
+
+    def test_reads_do_not_wait_for_slow_provider_tick(self):
+        import threading
+        import time
+        started, release = threading.Event(), threading.Event()
+
+        def slow(*a, **k):
+            started.set()
+            release.wait(5)
+            return REPLY
+        with tempfile.TemporaryDirectory() as tmp:
+            svc = self.make(tmp, slow)
+            worker = threading.Thread(target=svc.tick, args=([item()],))
+            worker.start()
+            try:
+                self.assertTrue(started.wait(5))
+                t0 = time.monotonic()
+                svc.assessments_for([item()])
+                svc.assessments()
+                svc.summary()
+                self.assertLess(time.monotonic() - t0, 0.5)
+                self.assertTrue(worker.is_alive())
+                svc.tick([item(2)])  # single flight: skipped, never blocks
+                self.assertLess(time.monotonic() - t0, 0.5)
+            finally:
+                release.set()
+                worker.join(10)
+
+    def test_locked_database_reads_fail_soft(self):
+        import sqlite3
+        with tempfile.TemporaryDirectory() as tmp:
+            svc = self.make(tmp)
+            svc.summary()
+            blocker = sqlite3.connect(svc.path)
+            blocker.execute('BEGIN EXCLUSIVE')
+            try:
+                svc.timeout = 0.05
+                self.assertEqual(svc.assessments_for([item()]), {})
+                self.assertEqual(svc.summary()['status'], 'enabled')
+            finally:
+                blocker.rollback()
+                blocker.close()
+
+    def test_deleted_database_is_recreated(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            svc = self.make(tmp)
+            svc.tick([item()])
+            self.assertEqual(svc.summary()['assessed'], 1)
+            svc.path.unlink()
+            for extra in ('-wal', '-shm'):
+                Path(str(svc.path) + extra).unlink(missing_ok=True)
+            self.assertEqual(svc.summary()['status'], 'unavailable')  # one failing call resets
+            svc.tick([item()])
+            self.assertEqual(svc.summary()['assessed'], 1)
+
+    def test_directory_in_place_of_database_file_is_unavailable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / 'a.sqlite').mkdir()
+            svc = self.make(tmp)
+            svc.tick([item()])
+            self.assertEqual(svc.summary()['status'], 'unavailable')
+            self.assertEqual(svc.assessments_for([item()]), {})
+
+    def test_lazy_init_creates_once_under_threads(self):
+        import sqlite3
+        import threading
+        with tempfile.TemporaryDirectory() as tmp:
+            svc = self.make(tmp)
+            real = sqlite3.connect
+            created = []
+
+            def counting(path, *a, **k):
+                db = real(path, *a, **k)
+                if not svc.ready:
+                    created.append(1)
+                return db
+            na.sqlite3.connect = counting
+            try:
+                threads = [threading.Thread(target=svc.summary) for _ in range(8)]
+                for t in threads:
+                    t.start()
+                for t in threads:
+                    t.join()
+            finally:
+                na.sqlite3.connect = real
+            self.assertEqual(len(created), 1)
+
+    def test_with_assessments_normal_list(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            svc = self.make(tmp)
+            svc.tick([item()])
+            news = IntegratedNews.__new__(IntegratedNews)
+            news.assessor = svc
+            out = news._with_assessments({'items': [item()]})
+            self.assertEqual(out['items'][0]['assessment']['sentiment'], 'bullish')
+            self.assertEqual(out['intelligence']['assessed'], 1)

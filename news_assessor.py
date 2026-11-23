@@ -38,13 +38,30 @@ class NewsAssessor:
         self.retry = {}  # item key -> (failures, not-before time); in memory only
         self.source = None
         self.lock, self.shutdown, self.thread = threading.Lock(), threading.Event(), None
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with closing(sqlite3.connect(self.path)) as db, db:
-            db.execute("""CREATE TABLE IF NOT EXISTS assessments (
-                item_id TEXT NOT NULL, item_available_at TEXT NOT NULL, status TEXT NOT NULL,
-                sentiment TEXT, event_type TEXT, confidence REAL, symbols TEXT, quote_sha256 TEXT,
-                assessed_at TEXT NOT NULL, available_at TEXT, PRIMARY KEY (item_id, item_available_at))""")
-            db.execute('CREATE TABLE IF NOT EXISTS usage (day TEXT PRIMARY KEY, used INTEGER NOT NULL)')
+        # lock guards start/stop only; tick_lock makes tick single-flight; init_lock covers lazy table
+        # creation. Reads take only init_lock (briefly) so they never wait for a provider call.
+        self.tick_lock, self.init_lock = threading.Lock(), threading.Lock()
+        self.timeout = 2.0  # seconds a connection waits on a locked database
+        self.ready = False  # storage is created lazily on first use; construction does no I/O
+
+    def _connect(self):
+        """Open storage, creating the directory and tables on first use. Raises OSError/sqlite3.Error."""
+        with self.init_lock:
+            if not self.ready:
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                with closing(sqlite3.connect(self.path, timeout=self.timeout)) as db, db:
+                    db.execute("""CREATE TABLE IF NOT EXISTS assessments (
+                        item_id TEXT NOT NULL, item_available_at TEXT NOT NULL, status TEXT NOT NULL,
+                        sentiment TEXT, event_type TEXT, confidence REAL, symbols TEXT, quote_sha256 TEXT,
+                        assessed_at TEXT NOT NULL, available_at TEXT, PRIMARY KEY (item_id, item_available_at))""")
+                    db.execute('CREATE TABLE IF NOT EXISTS usage (day TEXT PRIMARY KEY, used INTEGER NOT NULL)')
+                self.ready = True
+        return sqlite3.connect(self.path, timeout=self.timeout)
+
+    def _reset(self, exc):
+        """A failed query may mean the file was replaced or deleted: recreate tables on next use."""
+        if isinstance(exc, sqlite3.OperationalError):
+            self.ready = False
 
     def _day(self):
         return self.clock().astimezone(UTC).date().isoformat()
@@ -57,14 +74,18 @@ class NewsAssessor:
         """Assess unseen items within the caps. Never raises."""
         if not self.enabled:
             return
-        with self.lock:
-            try:
-                self._tick(items)
-            except Exception:
-                self.unavailable += 1
+        if not self.tick_lock.acquire(blocking=False):
+            return  # single flight: a tick is already running
+        try:
+            self._tick(items)
+        except Exception as exc:
+            self.unavailable += 1
+            self._reset(exc)
+        finally:
+            self.tick_lock.release()
 
     def _tick(self, items):
-        with closing(sqlite3.connect(self.path)) as db:
+        with closing(self._connect()) as db:
             remaining = max(0, min(self.cycle_limit, self.daily_limit - self._used(db)))
             budget = ni.Budget(remaining)
             for item in items:
@@ -104,32 +125,54 @@ class NewsAssessor:
                     availableAt=available, version=ni.VERSION, executionAllowed=False)
 
     def assessments(self):
-        """Latest assessed label for each item id (any revision)."""
-        with closing(sqlite3.connect(self.path)) as db:
-            rows = db.execute("""SELECT item_id, sentiment, event_type, confidence, symbols, quote_sha256, available_at
-                                 FROM assessments WHERE status='assessed' ORDER BY item_available_at""").fetchall()
+        """Latest assessed label for each item id (any revision). Empty if storage is unavailable."""
+        if not self.enabled:
+            return {}
+        try:
+            with closing(self._connect()) as db:
+                rows = db.execute("""SELECT item_id, sentiment, event_type, confidence, symbols, quote_sha256, available_at
+                                     FROM assessments WHERE status='assessed' ORDER BY item_available_at""").fetchall()
+        except (OSError, sqlite3.Error) as exc:
+            self._reset(exc)
+            return {}
         return {row[0]: self._label(*row[1:]) for row in rows}
 
     def assessments_for(self, items):
         """Labels made for exactly each item's current revision; older revisions are never shown."""
         found = {}
-        with closing(sqlite3.connect(self.path)) as db:
-            for item in items:
-                row = db.execute("""SELECT sentiment, event_type, confidence, symbols, quote_sha256, available_at
-                                     FROM assessments WHERE status='assessed' AND item_id=? AND item_available_at=?""",
-                                 (item['id'], item.get('availableAt') or '')).fetchone()
-                if row:
-                    found[item['id']] = self._label(*row)
+        if not self.enabled:
+            return found
+        try:
+            with closing(self._connect()) as db:
+                for item in items:
+                    row = db.execute("""SELECT sentiment, event_type, confidence, symbols, quote_sha256, available_at
+                                         FROM assessments WHERE status='assessed' AND item_id=? AND item_available_at=?""",
+                                     (item['id'], item.get('availableAt') or '')).fetchone()
+                    if row:
+                        found[item['id']] = self._label(*row)
+        except (OSError, sqlite3.Error) as exc:
+            self._reset(exc)
+            return {}
         return found
 
     def summary(self):
-        with closing(sqlite3.connect(self.path)) as db:
-            used = self._used(db)
-            rejected = db.execute("SELECT COUNT(*) FROM assessments WHERE status='rejected'").fetchone()[0]
-            assessed = db.execute("SELECT COUNT(*) FROM assessments WHERE status='assessed'").fetchone()[0]
-        return dict(status=self.state, usedToday=used, dailyLimit=self.daily_limit, cycleLimit=self.cycle_limit,
-                    assessed=assessed, rejected=rejected, unavailable=self.unavailable,
+        base = dict(dailyLimit=self.daily_limit, cycleLimit=self.cycle_limit, unavailable=self.unavailable,
                     scope='Model labels are research context only; they cannot authorise orders.')
+        if not self.enabled:
+            return dict(base, status=self.state, usedToday=0, assessed=0, rejected=0)
+        try:
+            with closing(self._connect()) as db:
+                used = self._used(db)
+                rejected = db.execute("SELECT COUNT(*) FROM assessments WHERE status='rejected'").fetchone()[0]
+                assessed = db.execute("SELECT COUNT(*) FROM assessments WHERE status='assessed'").fetchone()[0]
+        except (OSError, sqlite3.Error) as exc:
+            self._reset(exc)
+            if 'locked' in str(exc):  # busy, not broken: keep the status, report no counts
+                return dict(base, status=self.state, reason='Assessment storage is busy.',
+                            usedToday=0, assessed=0, rejected=0)
+            return dict(base, status='unavailable', reason='Assessment storage cannot be opened.',
+                        usedToday=0, assessed=0, rejected=0)
+        return dict(base, status=self.state, usedToday=used, assessed=assessed, rejected=rejected)
 
     def start(self):
         with self.lock:

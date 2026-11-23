@@ -18,7 +18,7 @@ import urllib.request
 from urllib.parse import urlsplit, urlunsplit, unquote_plus
 import xml.etree.ElementTree as ET
 
-from announcements import FEED as NSE_FEED, parse_feed as parse_nse
+from announcements import FEED as NSE_FEED, decode_feed, parse_feed as parse_nse
 from nse_filings import filing_metadata
 
 UTC = dt.timezone.utc
@@ -77,9 +77,9 @@ def parse_google(raw: bytes, received: dt.datetime) -> list[dict]:
 
 
 def rss_channel(raw: bytes):
-    if len(raw) > MAX_BYTES or b"\x00" in raw:
+    if len(raw) > MAX_BYTES:
         raise ValueError("Unsupported or oversized RSS feed.")
-    xml = raw.decode("utf-8-sig")
+    xml = decode_feed(raw)
     if "<!DOCTYPE" in xml.upper() or "<!ENTITY" in xml.upper():
         raise ValueError("Unsupported RSS declaration.")
     root = ET.fromstring(xml)  # nosec B314

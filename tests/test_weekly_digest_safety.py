@@ -32,6 +32,15 @@ class WeeklyDigestSafetyTests(unittest.TestCase):
         raw = b'<?xml version="1.0" encoding="UTF-8"?><rss><channel><item><title>T</title><link>https://example.com/1</link></item></channel></rss>'
         self.assertEqual(len(weekly_digest.parse_feed(raw, SOURCE)), 1)
 
+    def test_latin1_feed_parses_but_latin1_doctype_and_unknown_encoding_rejected(self):
+        ok = '<?xml version="1.0" encoding="ISO-8859-1"?><rss><channel><item><title>Caf\xe9</title><link>https://example.com/1</link></item></channel></rss>'
+        self.assertEqual(weekly_digest.parse_feed(ok.encode("latin-1"), SOURCE)[0]["title"], "Caf\xe9")
+        bad = '<?xml version="1.0" encoding="ISO-8859-1"?><!DOCTYPE rss [<!ENTITY a "b">]><rss>\xe9</rss>'
+        with self.assertRaises(ValueError):
+            weekly_digest.parse_feed(bad.encode("latin-1"), SOURCE)
+        with self.assertRaisesRegex(ValueError, "encoding"):
+            weekly_digest.parse_feed(b'<?xml version="1.0" encoding="koi8-r"?><rss>\xe9</rss>', SOURCE)
+
     def test_non_https_final_url_is_rejected(self):
         class Response:
             url = "http://example.com/feed.xml"

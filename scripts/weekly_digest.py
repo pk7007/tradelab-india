@@ -44,13 +44,31 @@ def parse_date(value: str) -> str:
         return value.strip()
 
 
-def parse_feed(content: bytes, source: dict) -> list[dict]:
+_XML_DECL = re.compile(rb'\A(?:\xef\xbb\xbf)?\s*<\?xml[^>]{0,150}?\bencoding\s*=\s*["\']([A-Za-z0-9._-]{1,30})["\']')
+_SINGLE_BYTE = {"iso-8859-1": "iso-8859-1", "latin-1": "iso-8859-1", "latin1": "iso-8859-1",
+                "windows-1252": "cp1252", "cp1252": "cp1252", "ascii": "ascii", "us-ascii": "ascii"}
+
+
+def decode_feed(content: bytes) -> str:
+    """UTF-8 first, else an allow-listed declared single-byte encoding (strict); otherwise reject."""
     if b"\x00" in content:
         raise ValueError("unsupported feed encoding")
     try:
-        text = content.decode("utf-8-sig")
+        return content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        pass
+    found = _XML_DECL.match(content[:200])
+    codec = _SINGLE_BYTE.get(found.group(1).decode("ascii").lower()) if found else None
+    if not codec:
+        raise ValueError("unsupported feed encoding")
+    try:
+        return content.decode(codec)
     except UnicodeDecodeError:
         raise ValueError("unsupported feed encoding") from None
+
+
+def parse_feed(content: bytes, source: dict) -> list[dict]:
+    text = decode_feed(content)
     if "<!DOCTYPE" in text.upper() or "<!ENTITY" in text.upper():
         raise ValueError("unsupported XML declaration")
     root = ET.fromstring(text)  # nosec B314

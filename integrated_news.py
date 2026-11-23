@@ -154,11 +154,12 @@ class IntegratedNews:
         """Attach optional model labels. They are context and never gate other processing."""
         if self.assessor:
             try:
-                found = self.assessor.assessments_for(result.get('items', []))
+                items = list(result.get('items', []))
+                found = self.assessor.assessments_for(items)
                 summary = self.assessor.summary()
             except Exception:
-                found, summary = {}, dict(status='unavailable')
-            for item in result.get('items', []):
+                items, found, summary = [], {}, dict(status='unavailable')
+            for item in items:
                 if item.get('id') in found:
                     label = found[item['id']]
                     item['assessment'] = dict(label['assessment'], availableAt=label['availableAt'],
