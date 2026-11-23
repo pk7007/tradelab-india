@@ -5,7 +5,8 @@
 | ruff (`E9`,`F`) | CI, pre-commit | Blocking, including unused variables (F841). |
 | bandit | CI | Blocks on high severity only (currently 0). Mediums reviewed below. |
 | pip-audit | CI | Report only. `kiteconnect` pins an `autobahn` with known advisories. |
-| gitleaks, detect-private-key, large-file check | pre-commit (local) | Run `pip install pre-commit && pre-commit install`. Not run in CI. |
+| gitleaks | CI and pre-commit | CI scans the full git history with `.gitleaks.toml`, which allowlists the two test files holding fake secret-shaped fixtures. Also runs locally via pre-commit. |
+| detect-private-key, large-file check | pre-commit (local) | Run `pip install pre-commit && pre-commit install`. Not run in CI. |
 | Dependabot | GitHub | Weekly pip and Actions updates. |
 
 ## Review outcomes (F841 and bandit mediums)
