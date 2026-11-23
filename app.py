@@ -65,9 +65,14 @@ from portal import Portal
 
 from dashboard_news import DashboardNews
 from integrated_news import IntegratedNews, LicensedNews
+import news_assessor
+NEWS_ASSESSOR = news_assessor.from_environment(os.environ, Path(os.environ.get('TRADELAB_NEWS_AI_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'news-assessments.sqlite'))))
 NEWS_AGENT = IntegratedNews(
     DashboardNews(Path(os.environ.get('TRADELAB_NEWS_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'news-agent.sqlite')))),
-    LicensedNews(os.environ, Path(os.environ.get('TRADELAB_SYNDICATION_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'licensed-news.sqlite')))))
+    LicensedNews(os.environ, Path(os.environ.get('TRADELAB_SYNDICATION_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'licensed-news.sqlite')))),
+    assessor=NEWS_ASSESSOR)
+# Read-only source of current items; the assessor thread only starts when explicitly enabled.
+NEWS_ASSESSOR.source = lambda: NEWS_AGENT.rss.status(getattr(MARKET, 'master', []))['items']
 PORTAL = Portal(Path(os.environ.get('TRADELAB_PORTAL_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'portal.sqlite'))))
 from paper import PaperEngine
 PAPER = PaperEngine(Path(os.environ.get('TRADELAB_PAPER_DB', str(Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia' / 'paper.sqlite'))))
@@ -131,7 +136,7 @@ def kite_request(path: str, token: str, *, method: str = "GET", form: dict[str, 
         headers["Content-Type"] = "application/x-www-form-urlencoded"
     request = urllib.request.Request(f"{KITE_API}{path}", data=data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(request, timeout=15) as response:
+        with urllib.request.urlopen(request, timeout=15) as response:  # nosec B310
             payload = json.loads(response.read(2_000_000).decode("utf-8"))
     except urllib.error.HTTPError as exc:
         # Provider bodies may echo account details, request URLs, or credentials.
@@ -815,7 +820,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=15) as response:
+            with urllib.request.urlopen(request, timeout=15) as response:  # nosec B310
                 payload = json.loads(response.read(256_000).decode("utf-8"))
             if payload.get("status") != "success" or not payload.get("data", {}).get("access_token"):
                 raise KiteError("Kite Connect did not return an access token.")

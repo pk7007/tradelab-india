@@ -37,7 +37,7 @@ work.then(result=>{
  finish({});await first;
  assert.equal(account.disabled,false);assert.equal(buttons[0].disabled,false);assert.equal(buttons[1].disabled,true,'Unavailable controls must stay disabled');
  const newsState={textContent:''},newsItems={children:['old article'],contains(){return true;},querySelectorAll(){return [];},append(item){this.children.push(item);},replaceChildren(...items){this.children=items;}},refreshButton={disabled:false,focused:false,focus(){assert.equal(this.disabled,false);this.focused=true;}};
- const newsCtx={newsMore:{hidden:false},newsCount:{textContent:''},renderNewsItems(){if(newsItems.contains())refreshButton.focus();},announcementBusy:false,document:{hidden:false},announcementRefresh:refreshButton,announcementState:newsState,announcementItems:newsItems,announcementSourceItems:{replaceChildren(){}},text:(_tag,value)=>({textContent:value}),api:async()=>{throw Error('Timeout');}};
+ const newsCtx={newsMore:{hidden:false},newsCount:{textContent:''},newsIntelligence:{hidden:false},renderNewsItems(){if(newsItems.contains())refreshButton.focus();},announcementBusy:false,document:{hidden:false},announcementRefresh:refreshButton,announcementState:newsState,announcementItems:newsItems,announcementSourceItems:{replaceChildren(){}},text:(_tag,value)=>({textContent:value}),api:async()=>{throw Error('Timeout');}};
  vm.createContext(newsCtx);
  vm.runInContext(source.slice(source.indexOf('async function refreshAnnouncements('),source.indexOf('announcementRefresh.onclick =')),newsCtx);
  await newsCtx.refreshAnnouncements();assert.match(newsState.textContent,/News unavailable/);assert.notEqual(newsItems.children[0],'old article');

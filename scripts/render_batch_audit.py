@@ -13,7 +13,6 @@ def render(batch, audit_folder, cas_folder, output):
     audit=load(audit_folder/'audit.json')
     cas=load(cas_folder/'results.json')
     quality=load(batch/'data-quality-audit-v1.1.json')
-    original=load(batch/'development-metrics.json')
     d=audit['development']
     lines=['# TradeLab India — independent loss audit, 20 November 2026','',
            '**Decision: no candidate promoted; real broker writes remain disabled.**',

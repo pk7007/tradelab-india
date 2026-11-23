@@ -28,3 +28,4 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 #guided-paper-setup label{display:flex;flex-direction:column;gap:6px}
 #guided-paper-setup button{align-self:end}
 .news-filters input,.news-filters select{width:100%;box-sizing:border-box}
+.history-item small.news-model-label{font-style:italic;color:#4a5f58}

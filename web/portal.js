@@ -35,6 +35,50 @@ function groupNews(items, source = '', query = '', kind = 'all') {
 }
 let settings=null, paper={accounts:[],events:[]}, busy=false, researchVersion=0, paperVersion=0;
 function text(tag,value,className){const el=document.createElement(tag);el.textContent=String(value??'');if(className)el.className=className;return el;}
+// Model news labels: research context only. Every value is validated, and nodes use textContent.
+const NEWS_SENTIMENTS = new Set(['bullish', 'bearish', 'neutral', 'unclear']);
+function newsLabelText(assessment) {
+  if (!assessment || typeof assessment !== 'object' || Array.isArray(assessment)) return '';
+  if (!NEWS_SENTIMENTS.has(assessment.sentiment)) return '';
+  const parts = [assessment.sentiment];
+  const confidence = assessment.confidence;
+  if (typeof confidence === 'number' && Number.isFinite(confidence) && confidence >= 0 && confidence <= 1) {
+    parts.push(Math.round(confidence * 100) + '% confidence');
+  }
+  if (typeof assessment.eventType === 'string') {
+    const event = assessment.eventType.replace(/_/g, ' ').replace(/[^\p{L}\p{N} -]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 40);
+    if (event) parts.push(event);
+  }
+  return 'Automatic research label (not advice): ' + parts.join(' · ');
+}
+function buildNewsLabel(assessment) {
+  const label = newsLabelText(assessment);
+  return label ? text('small', label, 'news-model-label') : null;
+}
+function newsIntelligenceText(intelligence) {
+  if (!intelligence || typeof intelligence !== 'object') return '';
+  const count = value => typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null;
+  switch (intelligence.status) {
+    case 'disabled': return 'Model labels off';
+    case 'missing-key': return 'Model labels unavailable: API key missing';
+    case 'missing-package': return 'Model labels unavailable: required package missing';
+    case 'unavailable': return 'Model labels unavailable: service not responding';
+    case 'enabled': {
+      const used = count(intelligence.usedToday), limit = count(intelligence.dailyLimit);
+      const assessed = count(intelligence.assessed), rejected = count(intelligence.rejected);
+      const parts = ['Model labels on'];
+      if (used !== null && limit !== null) parts.push(used + ' of ' + limit + ' used today');
+      if (assessed !== null) parts.push(assessed + ' assessed');
+      if (rejected) parts.push(rejected + ' rejected');
+      return parts.join(' · ');
+    }
+    default: return '';
+  }
+}
+function buildNewsIntelligence(intelligence) {
+  const line = newsIntelligenceText(intelligence);
+  return line ? text('small', line, 'muted') : null;
+}
 async function api(path,body){const response=await fetch(path,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'Content-Type':'application/json','X-CSRF-Token':document.querySelector('meta[name="csrf-token"]').content},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(30000)});let result;try{result=await response.json();}catch{throw Error('The server returned an unreadable response. Refresh or check the connection.');}if(!response.ok)throw Error(result.error||'Request failed.');return result;}
 async function run(action){if(busy)return;busy=true;$('message').textContent='Working…';try{const current=await action();$('message').textContent=current===false?'Inputs changed while the request was running. Re-evaluate the current inputs.':'Complete. Review the current state below.';}catch(error){$('message').textContent=error.message;}finally{busy=false;}}
 function activate(){ $('auto').hidden=false; }
@@ -121,9 +165,10 @@ for (const [value, label] of [['all', 'All news'], ['filings', 'NSE filings']]) 
 }
 kindLabel.append(newsKindFilter); newsFilters.append(sourceLabel, searchLabel, kindLabel);
 const newsCount = text('p', '', 'muted');
+const newsIntelligence = text('p', '', 'muted'); newsIntelligence.hidden = true;
 const newsMore = text('button', 'More headlines'); newsMore.type = 'button'; newsMore.hidden = true;
 let newsSnapshot = null, newsVisible = 20;
-announcementPanel.append(announcementState, announcementRefresh, newsFilters, newsCount, announcementSources, announcementItems, newsMore);
+announcementPanel.append(announcementState, announcementRefresh, newsFilters, newsCount, newsIntelligence, announcementSources, announcementItems, newsMore);
 $('auto').append(announcementPanel);
 let announcementBusy = false;
 function renderNewsItems(result) {
@@ -136,6 +181,8 @@ function renderNewsItems(result) {
     newsSourceFilter.value = sources.has(selectedSource) ? selectedSource : '';
     const groups = groupNews(result.items || [], newsSourceFilter.value, newsSearch.value, newsKindFilter.value);
     newsCount.textContent = groups.length + ' matching stories';
+    const intelligenceLine = newsIntelligenceText(result.intelligence);
+    newsIntelligence.textContent = intelligenceLine; newsIntelligence.hidden = !intelligenceLine;
     const openItems = new Set([...announcementItems.querySelectorAll('details[open]')].map(detail => detail.dataset.newsId));
     const focusedItem = document.activeElement?.closest('[data-news-id]');
     const focusInsideNews = announcementItems.contains(document.activeElement);
@@ -157,6 +204,8 @@ function renderNewsItems(result) {
       if (item.description) row.append(text('p', item.description));
       row.append(text('small', 'Published ' + formatDisplayTime(item.publishedAt)));
       if (group.relevance) row.append(text('small', group.relevance));
+      const modelLabel = buildNewsLabel((group.items.find(entry => newsLabelText(entry.assessment)) || {}).assessment);
+      if (modelLabel) row.append(modelLabel);
       for (const filing of item.source === 'nse' ? (item.filings || []) : []) {
         try {
           const documentUrl = new URL(filing.url);
@@ -220,7 +269,7 @@ async function refreshAnnouncements() {
     renderNewsItems(newsSnapshot);
   } catch (error) {
     recoverNewsFocus = announcementItems.contains(document.activeElement);
-    newsSnapshot = null; newsMore.hidden = true; newsCount.textContent = 'News unavailable';
+    newsSnapshot = null; newsMore.hidden = true; newsCount.textContent = 'News unavailable'; newsIntelligence.hidden = true;
     announcementState.textContent = 'News unavailable. ' + error.message;
     announcementSourceItems.replaceChildren();
     announcementItems.replaceChildren(text('p', 'Current news could not be verified.'));

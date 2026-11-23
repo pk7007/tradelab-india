@@ -26,7 +26,7 @@ jobs:
         run: pip-audit -r requirements.txt
       - name: Syntax checks
         run: |
-          python -m py_compile app.py paper.py evaluation.py trader_suite.py automation.py market_data.py research.py validation_lab.py scripts/weekly_digest.py
+          python -m py_compile app.py paper.py evaluation.py trader_suite.py automation.py market_data.py research.py validation_lab.py scripts/weekly_digest.py scripts/paper_readiness.py
           python -m py_compile paper_worker.py worker_runtime.py broker_snapshot.py news_agent.py dashboard_news.py
           python -m py_compile syndication_transport.py integrated_news.py strategy_contract.py entry_review.py
           python -m py_compile announcements.py research_context.py syndication.py portal.py execution_journal.py intraday_contract.py intraday_evaluation.py market_contract.py evidence.py
@@ -41,8 +41,12 @@ jobs:
           node --check web/portal.js
           node --check web/platform.js
           node --check web/workspace-tools.js
-          python -m py_compile news_intelligence.py
+          node --check tests/news-labels.test.js
+          python -m py_compile news_intelligence.py news_assessor.py indicators.py ema_adx_strategy.py
           python -m py_compile trade_workflow.py operational_alerts.py operations.py scripts/watch_service.py
+          python -m py_compile agent_catalog.py agent_handlers.py agent_service.py auto_selector.py desk_coordinator.py experiment_registry.py
+          python -m py_compile fundamental_research.py intraday_session.py nse_filings.py observed_forward.py session_evidence.py storage_ops.py
+          python -m py_compile scripts/structure_check.py scripts/project_report.py
       - name: Account calculation regression tests
         run: |
           node tests/account.test.js
@@ -54,7 +58,10 @@ jobs:
           node tests/session-ui.test.js
           node tests/news-time.test.js
           node tests/news-filters.test.js
+          node tests/news-labels.test.js
       - name: Offline data and research tests
         run: python -m unittest discover -s tests -v
       - name: Paper fixture disconnect and process restart
         run: python scripts/fixture_recovery.py
+      - name: Repository structure check
+        run: python scripts/structure_check.py

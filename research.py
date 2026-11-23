@@ -117,6 +117,12 @@ def experiment_record(config, dataset, report):
             'holdoutIndependent':False, 'liveAutomation':False}
 
 
+def _short(value,limit=40):
+    try: text=repr(value)
+    except Exception: text='<unrepresentable>'
+    return text if len(text)<=limit else text[:limit]+'...'
+
+
 class ResearchRiskGate:
     """Offline contract for future execution adapters; cannot submit orders.
 
@@ -142,8 +148,91 @@ class ResearchRiskGate:
         self.seen.add(signal)
         return True, 'Offline check passed; no order submitted'
 
-    def kill(self, pending_ids):
+    def kill(self, pending_ids, open_positions=None):
+        """Disarm permanently and return INTENTS only; nothing is submitted.
+
+        Never raises: the gate is always killed and disarmed, and the cancel
+        list is always returned. Killing stops new entries (check() refuses
+        afterwards) but does not by itself neutralise existing exposure.
+
+        pending_ids: list/tuple/set of non-empty strings (a bare string counts
+        as one id); anything else is ignored. Dropped ids are listed in
+        rejectedCancelIds.
+
+        open_positions: list of dicts with symbol, side BUY/SELL and quantity
+        (finite number > 0, not bool). Valid same-symbol/same-side rows are
+        merged and yield one opposite-side exit intent (intentOnly=True,
+        submitted=False). Invalid rows, and symbols with conflicting sides
+        (ambiguous net exit), yield no intent and are listed in
+        rejectedPositions; other symbols are unaffected. A non-list argument
+        yields no exits and one rejection.
+
+        exposureStatus: UNKNOWN_NOT_FLATTENED if positions were not supplied
+        or any row was rejected; NO_OPEN_POSITIONS_REPORTED for an empty list;
+        FLATTEN_REQUESTED only when every row was valid and an exit intent
+        exists. FLATTENED is never reported and positionsClosed stays False:
+        only broker/ledger reconciliation can confirm closure.
+        """
         self.killed=True
         self.armed=False
-        return {'cancelRequests':list(pending_ids), 'positionsClosed':False,
-                'message':'Cancellation intents only; broker confirmation required.'}
+        try: cancels,bad_ids=self._clean_ids(pending_ids)
+        except Exception: cancels,bad_ids=[],['<unprocessable pending_ids>']
+        exits,rejected=[],[]
+        status='UNKNOWN_NOT_FLATTENED'
+        if open_positions is not None:
+            try:
+                exits,rejected=self._exit_intents(open_positions)
+            except Exception:  # kill must never raise
+                exits,rejected=[],[{'index':None,'symbol':None,'reason':'Unprocessable positions'}]
+            if rejected: status='UNKNOWN_NOT_FLATTENED'
+            elif exits: status='FLATTEN_REQUESTED'
+            else: status='NO_OPEN_POSITIONS_REPORTED'
+        return {'cancelRequests':cancels, 'rejectedCancelIds':bad_ids,
+                'exitRequests':exits, 'rejectedPositions':rejected,
+                'exposureStatus':status, 'positionsClosed':False,
+                'message':'Cancellation and exit intents only; nothing submitted; '
+                          'broker confirmation and reconciliation required.'}
+
+    @staticmethod
+    def _clean_ids(pending_ids):
+        if pending_ids is None: return [],[]
+        if isinstance(pending_ids,str): pending_ids=[pending_ids]
+        if not isinstance(pending_ids,(list,tuple,set,frozenset)):
+            return [],[_short(pending_ids)]
+        good,bad=[],[]
+        for pid in pending_ids:
+            if isinstance(pid,str) and pid.strip():
+                if pid not in good: good.append(pid)
+            else: bad.append(_short(pid))
+        return good,bad
+
+    @staticmethod
+    def _exit_intents(open_positions):
+        if not isinstance(open_positions,(list,tuple)):
+            return [],[{'index':None,'symbol':None,'reason':'open_positions is not a list: '+_short(open_positions)}]
+        merged,sides,rejected,conflicts={},{},[],set()
+        for idx,pos in enumerate(open_positions):
+            reason=None
+            sym=side=qty=None
+            try:
+                if not isinstance(pos,dict): reason='Row is not a dict: '+_short(pos)
+                else:
+                    sym,side,qty=pos.get('symbol'),pos.get('side'),pos.get('quantity')
+                    if not isinstance(sym,str) or not sym.strip(): reason='Invalid symbol'
+                    elif not isinstance(side,str) or side.strip().upper() not in ('BUY','SELL'): reason='Invalid side'
+                    elif isinstance(qty,bool) or not isinstance(qty,(int,float)) or not math.isfinite(qty) or qty<=0:
+                        reason='Invalid quantity'
+            except Exception:  # one hostile row must not affect the others
+                reason='Unprocessable row'
+            if reason:
+                rejected.append({'index':idx,'symbol':_short(sym) if isinstance(sym,str) else None,'reason':reason})
+                continue
+            sym,side=sym.strip(),side.strip().upper()
+            if sides.setdefault(sym,side)!=side: conflicts.add(sym)
+            merged[(sym,side)]=merged.get((sym,side),0)+qty
+        for sym in sorted(conflicts):
+            rejected.append({'index':None,'symbol':sym,'reason':'Conflicting sides; net exit ambiguous'})
+        exits=[{'symbol':sym,'side':'SELL' if side=='BUY' else 'BUY','quantity':qty,
+                'intentOnly':True,'submitted':False}
+               for (sym,side),qty in merged.items() if sym not in conflicts]
+        return exits,rejected

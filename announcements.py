@@ -14,10 +14,32 @@ from nse_filings import filing_links
 FEED='https://nsearchives.nseindia.com/content/RSS/Online_announcements.xml'
 
 
+class FeedEncodingError(ValueError):
+    """Feed bytes are not UTF-8 or an allow-listed single-byte encoding."""
+
+
+_XML_DECL = re.compile(rb'\A(?:\xef\xbb\xbf)?\s*<\?xml[^>]{0,150}?\bencoding\s*=\s*["\']([A-Za-z0-9._-]{1,30})["\']')
+_SINGLE_BYTE = {'iso-8859-1': 'iso-8859-1', 'latin-1': 'iso-8859-1', 'latin1': 'iso-8859-1',
+                'windows-1252': 'cp1252', 'cp1252': 'cp1252', 'ascii': 'ascii', 'us-ascii': 'ascii'}
+
+
+def decode_feed(raw):
+    """Decode feed bytes safely: UTF-8 first, else an allow-listed declared single-byte encoding."""
+    if b'\x00' in raw: raise FeedEncodingError('Unsupported feed encoding.')
+    try: return raw.decode('utf-8-sig')
+    except UnicodeDecodeError: pass
+    found = _XML_DECL.match(raw[:200])
+    codec = _SINGLE_BYTE.get(found.group(1).decode('ascii').lower()) if found else None
+    if not codec: raise FeedEncodingError('Unsupported feed encoding.')
+    try: return raw.decode(codec)
+    except UnicodeDecodeError: raise FeedEncodingError('Unsupported feed encoding.') from None
+
+
 def parse_feed(raw, received):
-    if len(raw)>3_000_000 or b'<!DOCTYPE' in raw.upper() or b'<!ENTITY' in raw.upper():
-        raise ValueError('Unsupported or oversized feed.')
-    root=ET.fromstring(raw)
+    if len(raw)>3_000_000: raise ValueError('Unsupported or oversized feed.')
+    text=decode_feed(raw)
+    if '<!DOCTYPE' in text.upper() or '<!ENTITY' in text.upper(): raise ValueError('Unsupported or oversized feed.')
+    root=ET.fromstring(text)  # nosec B314
     if root.tag!='rss': raise ValueError('Expected RSS feed.')
     items=[];seen=set()
     for node in root.findall('./channel/item')[:1000]:
@@ -54,7 +76,7 @@ class Announcements:
                 self.checked=time.monotonic()
                 try:
                     req=urllib.request.Request(FEED,headers={'User-Agent':'TradeLabIndia/1.0 personal RSS reader','Accept':'application/rss+xml,application/xml'})
-                    with urllib.request.urlopen(req,timeout=15) as response:
+                    with urllib.request.urlopen(req,timeout=15) as response:  # nosec B310
                         if response.url!=FEED: raise ValueError('Unexpected feed redirect.')
                         raw=response.read(3_000_001)
                     received=dt.datetime.now(dt.timezone.utc)

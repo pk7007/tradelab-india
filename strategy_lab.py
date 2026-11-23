@@ -182,7 +182,8 @@ class StrategyLab:
     def load(db, table, identity):
         if table not in ('hypotheses', 'revisions'):
             raise ValueError('Unknown object type.')
-        row = db.execute('SELECT body FROM ' + table + ' WHERE id=?', (identity,)).fetchone()
+        # table is allow-listed above.
+        row = db.execute('SELECT body FROM ' + table + ' WHERE id=?', (identity,)).fetchone()  # nosec B608
         if row is None:
             raise ValueError('Unknown experiment object.')
         return json.loads(row['body'])

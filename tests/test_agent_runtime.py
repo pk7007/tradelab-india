@@ -82,7 +82,7 @@ class RuntimeAcceptanceTests(unittest.TestCase):
         self.assertEqual(next(r for r in status['roles'] if r['id']=='trade-risk.feature-calculation')['state'], 'quarantined')
 
     def test_process_deadline_terminates_without_committing_result(self):
-        identity = self.service.enqueue(self.task())
+        self.service.enqueue(self.task())
         claim = self.service._claim
         def tiny_budget():
             row, lease, _expires = claim()

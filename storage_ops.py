@@ -21,7 +21,8 @@ def verify(path):
         if messages != ['ok']:
             raise ValueError('Database integrity check failed.')
         tables = [row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")]
-        counts = {name: db.execute('SELECT COUNT(*) FROM "' + name.replace('"', '""') + '"').fetchone()[0] for name in tables}
+        # Names come from sqlite_master of a read-only file and are identifier-quoted.
+        counts = {name: db.execute('SELECT COUNT(*) FROM "' + name.replace('"', '""') + '"').fetchone()[0] for name in tables}  # nosec B608
         version = db.execute('PRAGMA user_version').fetchone()[0]
     return dict(integrity='ok', tables=counts, schemaVersion=version)
 

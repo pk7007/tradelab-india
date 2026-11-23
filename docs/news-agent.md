@@ -68,3 +68,6 @@ or sent to an AI provider, and this adds no API subscription or PDF requests.
 Attachment revisions update availability time. Stale and unmapped items stay
 outside eligible research context. Paper journals keep hashes and timestamps,
 not document text. This does not provide a complete historical filing archive.
+
+
+Feed encodings: decoded as UTF-8 first; otherwise only a declared iso-8859-1/latin-1, windows-1252 or ascii encoding is accepted (strict). Everything else (UTF-16/32, UTF-7, unknown or missing declaration with invalid UTF-8, NUL bytes) is rejected, and the source health row reports `error: FeedEncodingError`. The DOCTYPE/ENTITY check runs on the decoded text.

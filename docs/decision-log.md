@@ -25,3 +25,7 @@
 | 8. Broker expansion / deployment | Review broker terms, current exchange requirements, security and qualified compliance before each expansion or any hosted service | Product, Security, Compliance Reviewer |
 
 For a solo project, these are responsibilities, not evidence of a staffed or certified team. Record unresolved decisions as they arise; do not invent research results.
+
+## Owner decision: commit attribution (23 November 2026)
+
+The repository owner asked that GitHub not show Claude as a contributor. Coding agents commit under the owner's own git identity and add no co-author, session or other AI attribution lines to commit messages or pull request text. Commits `9c3333e`, `7bf32ca` and `2128aa3` follow this; the first two were rewritten with the owner's approval and a force-with-lease push of that unmerged branch.
