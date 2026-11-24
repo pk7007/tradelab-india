@@ -12,6 +12,7 @@ import time
 import daily_pipeline
 from intraday_contract import validate
 import lineage_store
+import supervision
 import trading_calendar
 from market_contract import session_for
 from market_data import clean_candles
@@ -70,8 +71,9 @@ def rank_candidates(candles, config, calendar, cutoff):
 
 class AutoSelector:
     """A fresh process starts disabled. Existing account exposure survives."""
-    def __init__(self, engine, market, clock=lambda:dt.datetime.now(IST), announcements=None):
+    def __init__(self, engine, market, clock=lambda:dt.datetime.now(IST), announcements=None, alerts=None):
         self.engine, self.market, self.clock = engine, market, clock
+        self.alerts=alerts
         self.announcements=announcements
         self.lock = threading.RLock()
         self.shutdown = threading.Event()
@@ -242,6 +244,7 @@ class AutoSelector:
             if self.enabled and (not self.thread or not self.thread.is_alive()):
                 self.thread=threading.Thread(target=self.loop,name='automatic-paper-selection',daemon=True)
                 self.thread.start()
+            self._resolve_login_alert()
             return self.status()
 
     def start_unfunded_session(self, now):
@@ -290,6 +293,7 @@ class AutoSelector:
             self.session=None
             self.worker.stop()
             self.detail['state']='stopped'
+            self._supervise(False)   # an open position must leave an incident when selection stops
             return self.status()
 
     def revoke(self):
@@ -301,6 +305,7 @@ class AutoSelector:
                     self.control('pause_entries')
                 finally:
                     self.stop()
+                    self._supervise(True)
 
     def control(self, action):
         """Session controls never abandon an active exit to pause new entries."""
@@ -350,26 +355,61 @@ class AutoSelector:
 
     def loop(self):
         while not self.shutdown.is_set():
-            try:
-                if not self.enabled:
-                    return
-                self.tick()
-            except Exception as exc:
-                with self.lock:
-                    if self.shutdown.is_set():
-                        return
-                    self.enabled=False
-                    self.token=None
-                    self.session=None
-                    self.detail.update(state='blocked',reason='BROKER_LOGIN_REQUIRED' if isinstance(exc,PermissionError)
-                                       else 'Selection or data validation failed. Review before resuming.')
-                    try:
-                        if self.worker.account:
-                            self.engine.control(self.worker.account,'pause_entries')
-                    finally:
-                        self.worker.stop()
+            if not self.step():
                 return
             self.shutdown.wait(30)
+
+    def step(self):
+        """One supervised tick. False means the loop must stop (disabled or failed)."""
+        try:
+            if not self.enabled:
+                return False
+            self.tick()
+            return True
+        except Exception as exc:
+            self._fail(exc)
+            return False
+
+    def _fail(self, exc):
+        with self.lock:
+            if self.shutdown.is_set():
+                return
+            self.enabled=False
+            self.token=None
+            self.session=None
+            self.detail.update(state='blocked',reason='BROKER_LOGIN_REQUIRED' if isinstance(exc,PermissionError)
+                               else 'Selection or data validation failed. Review before resuming.')
+            try:
+                if self.worker.account:
+                    self.engine.control(self.worker.account,'pause_entries')
+            finally:
+                self.worker.stop()
+            # Open exposure cannot close without accepted candles: keep it visible and tell the owner.
+            self._supervise(isinstance(exc,PermissionError))
+
+    def _supervise(self, login_lost):
+        """Best effort: an incident-inbox failure must never disturb failure handling or exits."""
+        try:
+            report=supervision.exposure_report(self.engine)
+            self.detail['exposure']=dict(status='EXPOSED' if report else 'FLAT',positions=report)
+            if self.alerts is None:
+                return
+            now=self.clock()
+            supervision.observe_exposure(self.alerts,self.engine,now=now)
+            if login_lost:
+                self.alerts.observe(supervision.LOGIN_KEY,'Broker login lost. New entries are blocked; reconnect Zerodha and '
+                                    're-arm recovery.'+(' Open paper exposure remains.' if report else ''),True,
+                                    severity='critical' if report else 'warning',now=now)
+        except Exception as error:
+            LOG.warning('Supervision alert unavailable (%s).',type(error).__name__)
+
+    def _resolve_login_alert(self):
+        try:
+            if self.alerts is not None:
+                self.alerts.observe(supervision.LOGIN_KEY,'Broker login restored.',False,now=self.clock())
+                supervision.observe_exposure(self.alerts,self.engine,now=self.clock())
+        except Exception as error:
+            LOG.warning('Supervision alert unavailable (%s).',type(error).__name__)
 
     def tick(self):
         if not self.enabled or self.shutdown.is_set():
@@ -553,6 +593,11 @@ class AutoSelector:
     def status(self):
         with self.lock:
             result=copy.deepcopy(self.detail)
+            try:
+                report=supervision.exposure_report(self.engine)
+                result['exposure']=dict(status='EXPOSED' if report else 'FLAT',positions=report)
+            except Exception:
+                result['exposure']=dict(status='UNKNOWN',positions=[])
             result.update(enabled=self.enabled,live=False,mode='automatic-candle-paper',
                           desiredState=self.desired,threadAlive=bool(self.thread and self.thread.is_alive()))
             with self.engine.db() as db:

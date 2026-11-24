@@ -115,6 +115,10 @@ from operational_alerts import OperationalAlerts
 ALERTS = OperationalAlerts(PORTAL.path.parent / 'operational-alerts.sqlite')
 OPERATIONS = Operations([PORTAL.path, PAPER.path, EXPERIMENTS.path, EXECUTION.path, AGENTS.path, STRATEGY_LAB.path, ALERTS.path], PORTAL.path.parent,
                         paper_engine=PAPER, alerts=ALERTS)
+AUTO_SELECTOR.alerts = ALERTS
+import supervision
+# A restart with open paper exposure leaves a durable incident until the ledger is flat again.
+supervision.startup_scan(ALERTS, PAPER)
 
 
 class KiteError(Exception):
