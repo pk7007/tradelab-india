@@ -13,6 +13,7 @@
   <script src="/automation.js" defer></script>
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to main content</a>
   <div class="app-shell">
     <aside class="sidebar">
       <a class="brand" href="/" aria-label="TradeLab India home">
@@ -21,17 +22,17 @@
       </a>
       <div class="side-label">WORKSPACE</div>
       <nav class="side-nav" aria-label="Main navigation">
-        <button class="nav-item active" data-view="automation"><span class="nav-icon">◈</span> Automation</button>
-        <button class="nav-item" data-view="overview"><span class="nav-icon">◫</span> Overview</button>
-        <button class="nav-item" data-view="orders"><span class="nav-icon">↗</span> Orders <span class="nav-count" id="order-count">—</span></button>
-        <button class="nav-item" data-view="holdings"><span class="nav-icon">▤</span> Holdings</button>
-        <button class="nav-item" data-view="positions"><span class="nav-icon">▥</span> Positions</button>
-        <button class="nav-item" data-view="market"><span class="nav-icon">∿</span> Market data</button>
-        <button class="nav-item" data-view="research"><span class="nav-icon">◇</span> Strategy lab</button>
+        <button class="nav-item active" data-view="automation" title="Automation" aria-label="Automation"><span class="nav-icon">◈</span> Automation</button>
+        <button class="nav-item" data-view="overview" title="Overview" aria-label="Overview"><span class="nav-icon">◫</span> Overview</button>
+        <button class="nav-item" data-view="orders" title="Orders" aria-label="Orders"><span class="nav-icon">↗</span> Orders <span class="nav-count" id="order-count">—</span></button>
+        <button class="nav-item" data-view="holdings" title="Holdings" aria-label="Holdings"><span class="nav-icon">▤</span> Holdings</button>
+        <button class="nav-item" data-view="positions" title="Positions" aria-label="Positions"><span class="nav-icon">▥</span> Positions</button>
+        <button class="nav-item" data-view="market" title="Market data" aria-label="Market data"><span class="nav-icon">∿</span> Market data</button>
+        <button class="nav-item" data-view="research" title="Strategy lab" aria-label="Strategy lab"><span class="nav-icon">◇</span> Strategy lab</button>
       </nav>
-      <a class="nav-item" href="/trader-scanner"><span class="nav-icon">⌕</span> Trader suite · 11 tools</a>
-      <a class="nav-item" href="/trader-evaluate"><span class="nav-icon">≋</span> Strategy evaluation</a>
-      <a class="nav-item" href="/trader-paper"><span class="nav-icon">≋</span> Durable paper accounts</a>
+      <a class="nav-item" href="/trader-scanner" title="Trader suite · 11 tools" aria-label="Trader suite · 11 tools"><span class="nav-icon">⌕</span> Trader suite · 11 tools</a>
+      <a class="nav-item" href="/trader-evaluate" title="Strategy evaluation" aria-label="Strategy evaluation"><span class="nav-icon">≋</span> Strategy evaluation</a>
+      <a class="nav-item" href="/trader-paper" title="Durable paper accounts" aria-label="Durable paper accounts"><span class="nav-icon">≋</span> Durable paper accounts</a>
       <div class="sidebar-bottom">
         <div class="connection-card">
           <span class="connection-dot" id="side-dot"></span>
@@ -41,7 +42,7 @@
       </div>
     </aside>
 
-    <main class="main-content">
+    <main id="main" class="main-content">
       <header class="topbar">
         <div class="crumb">Workspace <span>/</span> <strong id="crumb-view">Overview</strong></div>
         <div class="top-actions">
@@ -60,7 +61,7 @@
           </div>
         </section>
 
-        <section class="notice" aria-label="Connection and trading readiness"><strong>Connection is not trading readiness</strong><p id="readiness-status" role="status">Checking local configuration. Live automation remains unavailable.</p></section>
+        <section class="notice" aria-label="Connection and trading readiness"><strong>Connection is not trading readiness</strong><div id="readiness-status" role="status">Checking local configuration. Live automation remains unavailable.</div></section>
         <div class="notice" id="notice" role="status" hidden></div>
         <div class="risk-banner" id="risk-banner"><span class="risk-icon">!</span><div><strong>Live trading is locked</strong><span>Orders are sent to your Zerodha account only after local setup, an order review, and explicit confirmation.</span></div><span class="lock-tag">DISABLED BY DEFAULT</span></div>
 

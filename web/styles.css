@@ -15,3 +15,26 @@ body{background:#0a111c;color:#e7edf5;font-size:14px}.sidebar{background:#0c1522
 @media(max-width:900px){.sidebar .nav-item{font-size:0}.sidebar .brand>span:last-child{display:none!important}.sidebar .brand{width:38px;margin-left:auto;margin-right:auto}.sidebar .brand strong,.sidebar .brand small{display:none}.sidebar .nav-icon{font-size:17px}}
 
 :focus-visible{outline:2px solid #9ce8d2;outline-offset:3px}.table-wrap{overflow-x:auto}.automation-grid .research-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.audit-list p{overflow-wrap:anywhere}.page-heading{gap:18px}.heading-actions{flex-shrink:0}.market-chart-panel select{background:#102236;color:#dbe9f7;border-color:#3a526c}.strategy-status p{color:#a7b9cf}@media(max-width:1250px){.page-heading{align-items:flex-start;flex-direction:column}}@media(max-width:500px){.automation-grid .research-grid{grid-template-columns:1fr}.heading-actions{flex-wrap:wrap}.auto-metrics{grid-template-columns:1fr}.top-actions{gap:6px}}
+
+/* UI/UX pass: comfortable touch targets. */
+.button,.nav-item,.text-button,.icon-button,.account-button,summary,input,select{min-height:44px}
+.icon-button{min-width:44px}
+.brand{min-height:44px}
+
+/* UI/UX pass 2: skip link, visible focus, reduced motion, checkbox targets. */
+.skip-link{position:absolute;left:8px;top:-80px;z-index:100;background:#fff;color:#111;padding:12px 16px;border:2px solid #111;border-radius:8px;font-weight:700}
+.skip-link:focus{top:8px}
+:focus-visible{outline:3px solid #0b57d0;outline-offset:3px;box-shadow:0 0 0 6px #fff}
+input[type=checkbox]{width:24px;height:24px;min-height:24px;margin:0}
+.check,label.check{min-height:44px}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+
+/* Minimum text size 12px on the control room (decorative glyphs excluded). */
+.crumb,.crumb *,.avatar,.eyebrow,.panel-heading .eyebrow,.mode-pill,.text-button,.manual-tag,.lock-tag,caption,th,time,.stat-top,.stat-top *,.stat-note,.page-footer,.page-footer *,.live-indicator,.side-footer,.connection-card small,.field>span,.status,.sub-cell,.quote-line,.order-lock p,.order-footnote,.empty-state p,.risk-banner *,.brand small,.nav-count,.auto-metrics span,.audit-list time{font-size:12px!important}
+.eyebrow,.page-heading .eyebrow,.panel-heading .eyebrow{color:#a9ecd9!important}
+
+input[type=checkbox]{flex:none;min-width:24px}
+.brand{min-width:44px}
+.readiness-list{margin:6px 0 0;padding-left:20px;line-height:1.7}
+
+small,.sidebar small,.main-content small{font-size:12px!important}

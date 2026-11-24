@@ -280,7 +280,7 @@ async function refreshAnnouncements() {
   }
 }
 announcementRefresh.onclick = refreshAnnouncements;
-const announcementTimer = setInterval(refreshAnnouncements, 5000);
+const announcementTimer = setInterval(refreshAnnouncements, 15000);
 window.addEventListener('pagehide', () => clearInterval(announcementTimer));
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshAnnouncements(); });
 refreshAnnouncements();

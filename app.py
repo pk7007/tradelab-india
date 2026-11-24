@@ -322,6 +322,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if route == '/trader-paper': template = 'paper.html'
             if route in {'/', '/index.html', '/intraday', '/long-term', '/auto-trading'}: template = 'portal.html'
             page = (WEB / template).read_text(encoding="utf-8").replace("__CSRF_TOKEN__", session["csrf"])
+            import page_titles
+            page = page_titles.apply(page, route)
             cookie = f"tradelab_session={session_id}; HttpOnly; SameSite=Lax; Path=/"
             self.send_bytes(200, page.encode(), "text/html; charset=utf-8", extra_headers=[("Set-Cookie", cookie)])
             return

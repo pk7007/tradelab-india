@@ -84,7 +84,7 @@ def require_trading_day(manifest, as_of, *, square_off, max_age_days=MAX_AGE_DAY
     # research.timestamp() already yields IST; the explicit conversion keeps the intent obvious.
     today = now.astimezone(IST).date().isoformat()
     if today not in manifest['sessions']:
-        raise CalendarError('Today (%s) is not listed in the calendar; do not infer market open.' % today)
+        raise CalendarError('Today (%s) is not listed in the session calendar. Add it (a session, or null for a holiday); an unlisted day is never assumed open.' % today)
     session = session_for(manifest, date=today, as_of=now.isoformat())
     if not session['open']:
         raise ClosedDay('The calendar marks %s as closed.' % today)
@@ -98,3 +98,18 @@ def require_trading_day(manifest, as_of, *, square_off, max_age_days=MAX_AGE_DAY
         raise CalendarError('Square-off candle must complete strictly before the calendar close.')
     return dict(date=today, start=session['start'], end=session['end'], squareOffAt=exit_at.isoformat(),
                 version=info['version'], source=info['source'], fingerprint=info['fingerprint'])
+
+
+def next_open_date(manifest, as_of):
+    """The first listed open date after today (IST), or None. Reads the manifest only."""
+    today = timestamp(as_of).astimezone(IST).date()
+    sessions = manifest.get('sessions') if isinstance(manifest, dict) else None
+    best = None
+    for key, value in (sessions or {}).items():
+        try:
+            date = dt.date.fromisoformat(key)
+        except (ValueError, TypeError):
+            continue
+        if value is not None and date > today and (best is None or date < best):
+            best = date
+    return best.isoformat() if best else None
