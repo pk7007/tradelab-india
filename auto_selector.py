@@ -23,6 +23,7 @@ from strategy_contract import target_long
 from trader_suite import plan
 
 LOG=logging.getLogger(__name__)
+READ_ONLY_METHODS=frozenset({'historical_data','quote'})  # the only client calls selection needs
 
 
 def rank_candidates(candles, config, calendar, cutoff):
@@ -93,6 +94,9 @@ class AutoSelector:
             daily_pipeline.ensure_schema(db)
 
     def request(self, method, *args, **kwargs):
+        # Read-only market data only: this dispatcher must never reach an order, GTT or account-changing call.
+        if method not in READ_ONLY_METHODS:
+            raise ValueError('Only read-only market-data calls are allowed here.')
         if self.shutdown.is_set() or not self.enabled:
             raise ValueError('Selection stopped.')
         self.check_login()

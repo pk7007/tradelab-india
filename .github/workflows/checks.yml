@@ -51,7 +51,7 @@ jobs:
           python -m py_compile scripts/structure_check.py scripts/project_report.py
           python -m py_compile scripts/benchmark_agents.py scripts/check_intraday_ui.py scripts/check_research.py scripts/fixture_recovery.py scripts/loss_audit.py scripts/paper_research_batch.py
           python -m py_compile api_rate_limits.py broker_transport.py execution_controls.py market_observations.py transaction_costs.py
-          python -m py_compile lineage_store.py entry_gate.py trading_calendar.py daily_pipeline.py arming.py supervision.py page_titles.py ema_adx_backtest.py strategy_registry.py scripts/ema_adx_report.py eod_report.py scripts/eod_report.py live_readiness.py deployment_state.py scripts/readiness_report.py
+          python -m py_compile lineage_store.py entry_gate.py trading_calendar.py daily_pipeline.py arming.py supervision.py page_titles.py ema_adx_backtest.py strategy_registry.py scripts/ema_adx_report.py eod_report.py scripts/eod_report.py live_readiness.py deployment_state.py scripts/readiness_report.py order_guard.py improvement_proposals.py live_mock.py scripts/propose_improvements.py
       - name: Account calculation regression tests
         run: |
           node tests/account.test.js
