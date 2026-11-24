@@ -5,10 +5,13 @@ import hashlib
 import json
 import math
 import re
+import logging
 import threading
 import time
 
+import daily_pipeline
 from intraday_contract import validate
+import lineage_store
 from market_contract import session_for
 from market_data import clean_candles
 from paper_worker import PaperWorker
@@ -16,6 +19,8 @@ from research import IST, timestamp, validate_rows
 from research_context import attach_announcements, evidence_references
 from strategy_contract import target_long
 from trader_suite import plan
+
+LOG=logging.getLogger(__name__)
 
 
 def rank_candidates(candles, config, calendar, cutoff):
@@ -41,10 +46,10 @@ def rank_candidates(candles, config, calendar, cutoff):
             if now-(stamps[-1]+dt.timedelta(minutes=5)) > dt.timedelta(seconds=90):
                 raise ValueError('Latest completed candle is stale.')
             if any(float(r['volume']) <= 0 for r in rows[-20:]):
-                raise ValueError('No modeled liquidity.')
+                raise ValueError(daily_pipeline.REASON_LIQUIDITY)
             closes = [float(r['close']) for r in rows]
             if not target_long(closes):
-                raise ValueError('Shared SMA condition is false.')
+                raise ValueError(daily_pipeline.REASON_SIGNAL)
             entry = closes[-1]
             stop = entry * (1-config['stopDistancePct']/100)
             sized = plan(dict(entry=entry, stop=stop, target=entry+(entry-stop)*config['targetMultiple'],
@@ -53,7 +58,7 @@ def rank_candidates(candles, config, calendar, cutoff):
             quantity = min(sized['quantity'], config['units'],
                            math.floor(float(rows[-1]['volume'])*config['participationPct']/100))
             if quantity < 1 or sized['netRewardRisk'] <= 0:
-                raise ValueError('Costs, cash or volume exclude a whole share.')
+                raise ValueError(daily_pipeline.REASON_NO_SHARE)
             score = 100*(sum(closes[-5:])/5/(sum(closes[-20:])/20)-1)
             candidates.append(dict(symbol=symbol, score=score, bar=rows[-1]['date'],
                                    estimatedQuantity=quantity, plan=sized))
@@ -81,6 +86,8 @@ class AutoSelector:
             db.execute('CREATE TABLE IF NOT EXISTS auto_selection (day TEXT PRIMARY KEY, account TEXT UNIQUE NOT NULL, body TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS auto_scans (day TEXT PRIMARY KEY, body TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS auto_sessions (day TEXT PRIMARY KEY, body TEXT NOT NULL)')
+            lineage_store.ensure_schema(db)
+            daily_pipeline.ensure_schema(db)
 
     def request(self, method, *args, **kwargs):
         if self.shutdown.is_set() or not self.enabled:
@@ -422,6 +429,7 @@ class AutoSelector:
             quotes.update(self.request('quote',['NSE:'+s for s in symbols[offset:offset+500]]))
         shortlist=[]
         quote_excluded=[]
+        observed_times=[]
         for symbol in symbols:
             quote=quotes.get('NSE:'+symbol,{})
             try:
@@ -431,6 +439,7 @@ class AutoSelector:
                 if not 0<= (self.clock()-observed).total_seconds() <=90:
                     quote_excluded.append(dict(symbol=symbol,reason='Quote timestamp is stale or future.'))
                     continue
+                observed_times.append(observed)
                 if not math.isfinite(price*volume) or not 0<price<=self.config['capital'] or volume<=0:
                     quote_excluded.append(dict(symbol=symbol,reason='Quote price, capital or volume excludes this stock.'))
                     continue
@@ -445,17 +454,32 @@ class AutoSelector:
             candles[symbol]=self.fetch(instrument,timestamp(session['start']),min(self.clock(),timestamp(session['end']))-dt.timedelta(seconds=1))
         at=self.clock()
         ranked,excluded=rank_candidates(candles,self.config,self.calendar,at.isoformat())
+        scan=daily_pipeline.assess_scan(day=at.date().isoformat(),now=at.isoformat(),symbols=symbols,
+            quote_excluded=quote_excluded,quote_observed_at=max(observed_times).isoformat() if observed_times else None,
+            candles=candles,ranked=ranked,excluded=excluded,
+            candle_observed_at=(timestamp(max(r['bar'] for r in ranked))+dt.timedelta(minutes=5)).isoformat() if ranked else None,
+            optional_events=self.detail.get('newsContext'))
+        try:
+            with self.engine.db() as db:
+                daily_pipeline.record_scan(db,scan)
+        except Exception as error:
+            # Fail closed: an unrecorded selection cannot be traced, so it is not allowed to fund an account.
+            LOG.warning('Daily selection log unavailable (%s); selection blocked for this scan.',type(error).__name__)
+            scan.update(decision='blocked',selected=None,reasons=scan['reasons']+['Selection log unavailable (%s).'%type(error).__name__])
         self.detail.update(state='no-qualifying-candidate',universeCount=len(symbols),quoteCount=len(quotes),
                            candleChecks=len(candles),candidates=ranked,excluded=excluded,
                            checkedAt=at.isoformat(),nextScanAt=(at+dt.timedelta(minutes=5)).isoformat(),
                            strategyVersion=self.config['strategy'],
                            examinedSymbols=symbols,quoteExcluded=quote_excluded,
-                           ranking='Top 20 affordable turnover-proxy names, then shared SMA spread.')
+                           ranking='Top 20 affordable turnover-proxy names, then shared SMA spread.',
+                           decision=scan['decision'],decisionReasons=scan['reasons'],selectionLineage=scan['finalTaskId'])
+        if scan['decision']=='blocked':
+            self.detail.update(state='selection-blocked',reason='; '.join(scan['reasons']))
         with self.engine.db() as db:
             db.execute('INSERT OR REPLACE INTO auto_scans VALUES(?,?)',
                        (at.date().isoformat(),json.dumps(self.detail,allow_nan=False)))
-        if ranked and at.strftime('%H:%M')<self.config['entryEnd']:
-            symbol=ranked[0]['symbol']
+        if scan['decision']=='selected' and at.strftime('%H:%M')<self.config['entryEnd']:
+            symbol=scan['selected']
             instrument=dict(exchange='NSE',symbol=symbol,token=int(universe[symbol]['instrument_token']))
             self.allocate(at.date().isoformat(),instrument)
 
@@ -501,7 +525,8 @@ class AutoSelector:
                                 calendar=self.calendar,profile=self.profile,
                                 selectionTrace={key:copy.deepcopy(self.detail[key]) for key in
                                     ('universeCount','quoteCount','candleChecks','candidates','excluded',
-                                     'checkedAt','ranking','strategyVersion') if key in self.detail})
+                                     'checkedAt','ranking','strategyVersion','decision','decisionReasons',
+                                     'selectionLineage') if key in self.detail})
                 allocation['selectionTrace'].update(
                     examinedSymbols=copy.deepcopy(self.detail.get('examinedSymbols',[])),
                     quoteExcluded=copy.deepcopy(self.detail.get('quoteExcluded',[])),
