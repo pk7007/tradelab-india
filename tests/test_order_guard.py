@@ -29,6 +29,16 @@ class RepositoryGuardTests(unittest.TestCase):
             allowed = {(f['file'], f['line']): f['allowed'] for f in guard.scan_repo(root, files)}
         self.assertEqual(allowed, {('bot.py', 2): False, ('app.py', 3): True, ('app.py', 4): False})
 
+    def test_only_the_guard_itself_is_skipped_and_it_makes_no_broker_call(self):
+        self.assertEqual(guard.SELF, 'order_guard.py')
+        tree = ast.parse((ROOT / guard.SELF).read_text(encoding='utf-8'))
+        calls = {n.func.attr if isinstance(n.func, ast.Attribute) else getattr(n.func, 'id', None)
+                 for n in ast.walk(tree) if isinstance(n, ast.Call)}
+        self.assertFalse(calls & guard.ORDER_METHODS)
+        imported = {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
+        imported |= {n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)}
+        self.assertEqual(imported, {'ast', 're', 'subprocess', 'collections', 'pathlib'})
+
     def test_the_tracked_file_list_covers_the_app_and_skips_virtual_environments(self):
         files = {p.relative_to(ROOT).as_posix() for p in guard.tracked_files(ROOT)}
         self.assertIn('app.py', files)

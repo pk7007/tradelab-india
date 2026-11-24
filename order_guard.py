@@ -32,6 +32,7 @@ ORDER_PATH = re.compile(r'(?:^|api\.kite\.trade)/(?:orders|gtt|portfolio/positio
 HOST = 'api.kite.trade'
 WRITE_VERBS = {'post', 'put', 'patch', 'delete'}
 BODY_KEYWORDS = {'form', 'data', 'json', 'body', 'files'}
+SELF = 'order_guard.py'   # this file lists the patterns it looks for; it contains no call and is skipped by name
 SKIP_PARTS = {'.venv', 'venv', '.tools', 'node_modules', 'graphify-out', '__pycache__', '.git'}
 JS_PATTERN = re.compile(r'api\.kite\.trade|["\'`](?:/orders|/gtt)[/"\'`?]')
 ALLOWLIST = {
@@ -141,7 +142,7 @@ def scan_repo(root, files=None):
     results, used = [], Counter()
     for path in files if files is not None else tracked_files(root):
         relative = path.relative_to(root).as_posix()
-        if relative.startswith('tests/'):
+        if relative.startswith('tests/') or relative == SELF:
             continue
         text = path.read_text(encoding='utf-8', errors='replace')
         found = scan_python(text, relative) if path.suffix == '.py' else scan_script(text, relative)
