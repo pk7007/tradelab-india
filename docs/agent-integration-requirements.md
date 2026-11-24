@@ -69,6 +69,21 @@ yet recorded in the lineage. There is no periodic review, no dashboard stage vie
 for the lineage table. Square-off is covered only indirectly: the tests prove a stop exit and reconciliation
 run when the lineage store fails; a square-off-specific test is an accepted gap and the next useful check. These remain requirements above.
 
+### Phase 2 subset (daily selection pipeline)
+
+`daily_pipeline.py` classifies every `AutoSelector` scan as `selected`, `abstain` or `blocked` and records
+it in the lineage store (universe, quote observations, candles, selection, with input hashes and
+observed/available times) plus a `daily_selection_log` row with the reasons. A dead quote feed (fewer fresh
+quotes than 20% of the universe, capped at 25 so a thin stale tail of a ~2000-name universe is not misread) or mostly failed candle series (or an observation dated after the scan) blocks selection for that scan; a clean scan with no
+qualifying stock is a logged abstention; a failure to write the log also blocks (fail closed). Only a
+`selected` decision may fund a paper account. It never touches exits, square-off, reconciliation or limits.
+
+Knowingly out of scope: the thresholds are uncalibrated floors; inside `AutoSelector` a future-dated quote or candle is already absorbed by the existing stale-quote and completed-candle rules, so the explicit feed-clock check in `assess_scan` only applies to direct callers; the pipeline runs inside the existing
+intraday scan (after 20 completed candles), not as a true pre-market job; issuer/event mapping is recorded
+only as optional advisory context from the existing news attachment and never gates selection; the
+selection stage is not checked by `entry_gate`, which still guards the entry handoff chain; there is no
+retention policy for `daily_selection_log`.
+
 AGENTS.md establishes the Codex development review workflow for subsequent work
 in this repository. It is read by coding agents that support project instructions.
 Runtime continuous review requires application implementation and operational
