@@ -21,7 +21,7 @@
     "reliability.ci": {"status": "pass", "source": ".github/workflows/checks.yml", "detail": "Offline unit tests, fixture recovery, bandit (high) and gitleaks in CI."},
     "reliability.crash_recovery": {"status": "unverified", "detail": "Only clean restarts are tested (tests/test_paper.py); no test kills the process mid-write. SQLite transactions roll back, but that is not verified here."},
     "reliability.chaos": {"status": "unverified", "detail": "No chaos or disaster-recovery suite (outages, clock drift, manual broker orders) exists."},
-    "ai.no_direct_orders": {"status": "unverified", "detail": "Order submission requires review and a live lock (tests/test_orders.py), but no test yet proves that no model path reaches an order call; planned in Phase 7."},
+    "ai.no_direct_orders": {"status": "pass", "source": "tests/test_order_guard.py::RepositoryGuardTests::test_no_broker_order_call_exists_outside_the_reviewed_allowlist", "detail": "Static guard over all tracked sources with a counted allowlist: the only order submission is Handler.place_order behind LIVE_EXECUTION_READY=False; the selection dispatcher is limited to read-only market-data methods (tested); no module imports app. Names built at runtime (exec) are outside a static check."},
     "ai.drift_calibration": {"status": "unverified", "detail": "No drift detection or confidence calibration exists."},
     "security.secrets": {"status": "pass", "source": ".gitleaks.toml", "detail": "gitleaks full-history scan in CI; .env is git-ignored."},
     "security.dependency_scan": {"status": "pass", "source": ".github/workflows/checks.yml", "detail": "pip-audit on requirements.txt in CI, report-only (continue-on-error): it does not fail the build."},

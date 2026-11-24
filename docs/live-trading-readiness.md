@@ -1,6 +1,6 @@
 # Live-trading readiness
 
-Status on 24 November 2026: **NOT READY. Score 38/100 (DEVELOPMENT ONLY), with 11 open hard blockers.**
+Status on 24 November 2026: **NOT READY. Score 41/100 (DEVELOPMENT ONLY), with 11 open hard blockers.**
 Real money stays locked: `LIVE_EXECUTION_READY = False` in `app.py`, and nothing in this work changes it.
 
 Regenerate at any time (offline, read-only):
@@ -73,7 +73,7 @@ order path.
 1. Owner: run supervised paper sessions from 25 November and keep the end-of-day reports (`scripts/eod_report.py`);
    scheduling them with Task Scheduler is an owner action.
 2. Code: weekly, monthly and drawdown suspension plus a consecutive-loss stop in the paper engine (reviewed phase).
-3. Code: a no-order-call guard and a mock-only kill and reconciliation path (Phase 7).
+3. Done in Phase 7 (`docs/proposals-and-live-path.md`): a no-order-call guard and a mock-only kill and reconciliation path. Broker-side reconciliation against Zerodha is still missing.
 4. Owner or adviser: verify SEBI retail-algo rules, NSE requirements and Zerodha API terms from official sources and record the URLs.
 5. Elapsed time: 60 paper days and 300 trades, then 10 to 20 shadow days. Only then can the quantitative blockers clear.
 6. Owner only: a written decision to request micro-live, recorded through the state machine.
