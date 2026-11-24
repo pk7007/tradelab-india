@@ -47,7 +47,7 @@ async function api(path, options = {}) {
 function connectState(status) {
   connected = status.connected;
   liveOrdersEnabled = status.liveOrdersEnabled;
-  $('#readiness-status').textContent = [
+  const readiness = [
     'Credentials: '+(status.credentialsConfigured?'configured':'missing'),
     'Session: '+(status.connected?'token present; broker requests validate it':'disconnected'),
     'Data freshness: check Market data',
@@ -56,7 +56,11 @@ function connectState(status) {
     'Live automation: unavailable',
     'Manual live orders: '+(status.liveOrdersEnabled?'enabled; explicit confirmation required':'locked'),
     'Live readiness: '+(status.liveReadinessReason || 'not established')
-  ].join(' | ');
+  ];
+  const readinessList = document.createElement('ul');
+  readinessList.className = 'readiness-list';
+  for (const line of readiness) { const item = document.createElement('li'); item.textContent = line; readinessList.append(item); }
+  $('#readiness-status').replaceChildren(readinessList);
   if(!connected){resetAccount(); resetExecutionJournal();}
   $('#execution-reconcile').disabled=!connected;
   $('#execution-refresh').disabled=!connected;

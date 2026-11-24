@@ -51,7 +51,7 @@ jobs:
           python -m py_compile scripts/structure_check.py scripts/project_report.py
           python -m py_compile scripts/benchmark_agents.py scripts/check_intraday_ui.py scripts/check_research.py scripts/fixture_recovery.py scripts/loss_audit.py scripts/paper_research_batch.py
           python -m py_compile api_rate_limits.py broker_transport.py execution_controls.py market_observations.py transaction_costs.py
-          python -m py_compile lineage_store.py entry_gate.py trading_calendar.py daily_pipeline.py arming.py supervision.py
+          python -m py_compile lineage_store.py entry_gate.py trading_calendar.py daily_pipeline.py arming.py supervision.py page_titles.py
       - name: Account calculation regression tests
         run: |
           node tests/account.test.js
@@ -60,6 +60,8 @@ jobs:
           node tests/portal-limits.test.js
           node tests/intraday-ui.test.js
           node tests/worker-ui.test.js
+          node tests/arming-ui.test.js
+          node tests/refresh-failure.test.js
           node tests/session-ui.test.js
           node tests/news-time.test.js
           node tests/news-filters.test.js

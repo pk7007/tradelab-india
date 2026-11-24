@@ -3,12 +3,14 @@ import datetime as dt
 import hashlib
 import json
 
+import trading_calendar
 
+IST = dt.timezone(dt.timedelta(hours=5, minutes=30))
 INTENDED_PROFILE = dict(capital=10000, maxLoss=250, dailyLossLimit=1000)
 
 
 def session_snapshot(engine, selection, settings, *, connected, storage_approved,
-                     news=None, desk=None):
+                     news=None, desk=None, now=None):
     """Never infer a completed exit or a running worker from requested state."""
     account = None
     events, receipts = [], []
@@ -73,6 +75,37 @@ def session_snapshot(engine, selection, settings, *, connected, storage_approved
         attention.append('Connect Zerodha before starting or recovering provider observations.')
     if not storage_approved:
         attention.append('Confirm approved local market-data retention in Settings.')
+    calendar_state = None
+    calendar_todo = None
+    if isinstance(selection.get('calendar'), dict):
+        moment = (now or dt.datetime.now(IST)).isoformat()
+        upcoming = trading_calendar.next_open_date(selection['calendar'], moment)
+        try:
+            day = trading_calendar.require_trading_day(selection['calendar'], moment, strict_sessions=False,
+                                                       square_off=(config or {}).get('squareOff') or '15:05')
+            calendar_state = dict(ready=True, version=day['version'], date=day['date'])
+        except trading_calendar.ClosedDay:
+            calendar_state = dict(ready=False)
+            calendar_todo = ('Today is a holiday in the calendar. The next listed open session is %s; start then.' % upcoming
+                             if upcoming else 'Today is a holiday in the calendar and no later open date is listed. '
+                             'Add your next trading date to the calendar.')
+            attention.append('Today is marked closed in the session calendar, so a paper session cannot start. ' + calendar_todo)
+        except (trading_calendar.CalendarError, ValueError, TypeError) as error:
+            calendar_state = dict(ready=False)
+            stale = 'stale' in str(error)
+            calendar_todo = ('The calendar is more than 30 days old. Refresh it from its source and check the terms of use of that source.'
+                             if stale else str(error))
+            attention.append('The session calendar cannot be used: %s' % error)
+    steps = [dict(key='login', label='Connect Zerodha', done=bool(connected),
+                  todo='Click Connect Zerodha (top right) and sign in yourself.'),
+             dict(key='retention', label='Approve local candle retention', done=bool(storage_approved),
+                  todo='Set KITE_DATA_STORAGE_APPROVED=true in your own .env, then restart the app.')]
+    if calendar_state is not None:
+        steps.append(dict(key='calendar', label='Session calendar covers today', done=calendar_state['ready'],
+                          todo=calendar_todo or 'Check the calendar.'))
+    pending_steps = [step for step in steps if not step['done']]
+    arming = dict(steps=steps, ready=not pending_steps,
+                  nextStep=pending_steps[0]['todo'] if pending_steps else 'Press Start paper trading.')
     if report and not report['reconciliation']['matches']:
         attention.append('Ledger mismatch. Investigate before resuming entries.')
     if exposed and not selection.get('enabled'):
@@ -95,13 +128,15 @@ def session_snapshot(engine, selection, settings, *, connected, storage_approved
                 savedProfile=config, intendedProfile=INTENDED_PROFILE,
                 profileDifferences=differences, report=report, outstandingExposure=exposed,
                 readiness=dict(connected=connected, storageApproved=storage_approved,
+                               calendarReady=None if calendar_state is None else calendar_state['ready'],
                                recoveryRequired=recovery,
                                canRequestStart=bool(connected and storage_approved
+                                                    and (calendar_state is None or calendar_state['ready'])
                                                     and not selection.get('enabled') and not foreign_exposure
                                                     and not (no_trade and no_trade.get('final'))
                                                     and (not exposed or recovery)
                                                     and (not reconciliation or reconciliation['matches']))),
-                attention=attention, nextAction=next_action,
+                attention=attention, arming=arming, nextAction=next_action,
                 news=dict(status=(news or {}).get('status', 'unavailable'),
                           stale=(news or {}).get('stale', True),
                           sources=(news or {}).get('sources', []),

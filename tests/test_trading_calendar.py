@@ -134,5 +134,18 @@ class TradingDayTests(unittest.TestCase):
             cal.require_trading_day(manifest(availableAt='2026-09-01T00:00:00+05:30'), NOW, square_off='15:05')
 
 
+class NextOpenDateTests(unittest.TestCase):
+    def test_next_open_date_skips_holidays_and_past_dates(self):
+        self.assertEqual(cal.next_open_date(manifest(), '2026-11-23T10:00:00+05:30'), '2026-11-25')
+        self.assertEqual(cal.next_open_date(manifest(), '2026-11-24T10:00:00+05:30'), '2026-11-25')
+        self.assertIsNone(cal.next_open_date(manifest(), '2026-11-26T10:00:00+05:30'))
+        self.assertIsNone(cal.next_open_date(None, NOW))
+        self.assertIsNone(cal.next_open_date(dict(sessions={'bad': None, '2026-11-30': None}), NOW))
+
+    def test_unlisted_message_tells_the_owner_what_to_add(self):
+        with self.assertRaisesRegex(cal.CalendarError, 'not listed.*Add it'):
+            cal.require_trading_day(manifest(), '2026-11-30T10:00:00+05:30', square_off='15:05')
+
+
 if __name__ == '__main__':
     unittest.main()

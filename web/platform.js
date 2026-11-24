@@ -33,6 +33,35 @@ selectionPanel.append(text('h3', 'Session controls'));
 const selectionState = text('p', 'Checking automatic selection…');
 selectionState.setAttribute('role', 'status');
 const selectionResults = text('div', '');
+
+// The panel is rebuilt every refresh; keep keyboard focus on the same control afterwards.
+const ARMING_NOTICES = ['Connect Zerodha before', 'Confirm approved local market-data retention', 'Today is marked closed', 'The session calendar cannot be used'];
+function focusKey(container) {
+  const active = document.activeElement;
+  if (!active || active === document.body || !container.contains(active)) return null;
+  return {tag: active.tagName, text: (active.textContent || '').trim().slice(0, 80),
+    index: [...container.querySelectorAll(active.tagName)].indexOf(active)};
+}
+function restoreFocus(container, key) {
+  if (!key) return;
+  const same = [...container.querySelectorAll(key.tag)];
+  const target = same.find(item => (item.textContent || '').trim().slice(0, 80) === key.text) || same[key.index];
+  if (target) target.focus({preventScroll: true});
+}
+function renderArmingSteps(parent, arming) {
+  if (!arming || arming.ready) return;
+  parent.append(text('h3', 'Before you start'));
+  const list = document.createElement('ol');
+  list.id = 'arming-steps';
+  list.className = 'arming-steps';
+  for (const step of arming.steps || []) {
+    const item = document.createElement('li');
+    item.append(text('strong', (step.done ? 'Done · ' : 'To do · ') + step.label));
+    if (!step.done) item.append(text('span', ' — ' + step.todo, 'muted'));
+    list.append(item);
+  }
+  parent.append(list);
+}
 const selectionStart = text('button', 'Start paper trading', 'primary');
 const selectionPause = text('button', 'Pause new entries');
 const selectionResume = text('button', 'Resume new entries');
@@ -63,6 +92,11 @@ function setSelectionButtons() {
   selectionPause.disabled = unavailable || !selectionSnapshot?.enabled;
   selectionResume.disabled = unavailable || !selectionSnapshot?.enabled;
   selectionEnd.disabled = unavailable || !(selectionSnapshot?.enabled || selectionSnapshot?.accountId);
+  const armingPending = sessionSnapshot?.arming && !sessionSnapshot.arming.ready;
+  for (const [button, reason] of [[selectionStart, armingPending ? 'arming-steps' : 'next-action'],
+      [selectionPause, 'next-action'], [selectionResume, 'next-action'], [selectionEnd, 'next-action']]) {
+    if (button.disabled) button.setAttribute('aria-describedby', reason); else button.removeAttribute('aria-describedby');
+  }
 }
 
 function renderEntryReview(parent, review) {
@@ -109,12 +143,19 @@ async function refreshSelection() {
     selectionState.textContent = selectionStatusText(selectionSnapshot);
     const expandedDetails = new Set([...selectionResults.querySelectorAll('details[open]')]
       .map(detail => detail.querySelector('summary')?.textContent));
+    const focusAt = focusKey(selectionResults);
     selectionResults.replaceChildren();
-    for (const notice of sessionSnapshot.attention || []) selectionResults.append(text('p', notice, 'notice'));
+    selectionState.setAttribute('role', 'status');
+    renderArmingSteps(selectionResults, sessionSnapshot.arming);
+    const coveredBySteps = sessionSnapshot.arming && !sessionSnapshot.arming.ready;
+    for (const notice of sessionSnapshot.attention || []) {
+      if (coveredBySteps && ARMING_NOTICES.some(prefix => notice.startsWith(prefix))) continue;
+      selectionResults.append(text('p', notice, 'notice'));
+    }
     const readiness = sessionSnapshot.readiness || {};
     const sessionDetails = document.createElement('details');
     sessionDetails.append(text('summary', 'Session setup and diagnostics'));
-    sessionDetails.append(text('p', 'Broker ' + (readiness.connected ? 'connected' : 'login required') + ' · Local data storage ' + (readiness.storageApproved ? 'approved' : 'approval required')));
+    sessionDetails.append(text('p', 'Broker ' + (readiness.connected ? 'connected' : 'login required') + ' · Local data storage ' + (readiness.storageApproved ? 'approved' : 'approval required') + (readiness.calendarReady === null || readiness.calendarReady === undefined ? '' : ' · Session calendar ' + (readiness.calendarReady ? 'ready for today' : 'not usable today'))));
     if (sessionSnapshot.news?.decisionEffect) sessionDetails.append(text('p', sessionSnapshot.news.decisionEffect, 'muted'));
     const evidence = sessionSnapshot.agents?.sessionEvidence;
     if (evidence) {
@@ -186,6 +227,7 @@ async function refreshSelection() {
     for (const detail of selectionResults.querySelectorAll('details')) {
       detail.open = expandedDetails.has(detail.querySelector('summary')?.textContent);
     }
+    restoreFocus(selectionResults, focusAt);
     $('next-action').textContent = sessionSnapshot.nextAction || selectionSnapshot.reason || (selectionSnapshot.enabled ? 'Waiting for the next completed candle or qualifying stock.' : 'Review the saved account, connection and calendar, then start paper trading.');
     setSelectionButtons();
   } catch (error) {
@@ -193,6 +235,7 @@ async function refreshSelection() {
     selectionSnapshot = null;
     sessionSnapshot = null;
     selectionState.textContent = 'Session health unavailable. ' + error.message;
+    selectionState.setAttribute('role', 'alert');
     $('next-action').textContent = 'Refresh session health before issuing another control.';
     selectionResults.replaceChildren();
     setSelectionButtons();
