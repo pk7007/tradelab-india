@@ -139,6 +139,17 @@ class IntradayHTTPTests(unittest.TestCase):
         self.assertNotIn('private', json.dumps(result))
         self.broker_order.assert_not_called()
 
+    def test_status_includes_a_read_only_arming_checklist_without_secrets(self):
+        status, result = self.request('/api/auto-selection')
+        self.assertEqual(status, 200)
+        arming = result['arming']
+        self.assertEqual(arming['mode'], 'paper-only')
+        self.assertFalse(arming['attestationsWrittenByCode'])
+        self.assertFalse(arming['authorizesOrders'])
+        self.assertEqual({item['key'] for item in arming['items']}, {'login', 'storage', 'calendar', 'selector'})
+        self.assertNotIn('access_token', json.dumps(arming))
+        self.broker_order.assert_not_called()
+
     def test_no_qualifying_candidate_remains_cash_then_ends(self):
         self.fixture.rows = [dict(row, volume=0) for row in self.fixture.rows]
         self.start()

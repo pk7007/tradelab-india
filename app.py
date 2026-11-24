@@ -348,7 +348,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 sources=[{key:row.get(key) for key in ('source','status','stale')} for row in sources])); return
         if route == '/api/auto-selection':
             try:
-                self.json_response(200, automatic_selection_status())
+                import datetime as _dt
+                import arming
+                payload = automatic_selection_status()
+                _, browser_session = self.session()
+                # Read-only checklist: it reports what only the owner can do and never arms or attests.
+                payload['arming'] = arming.checklist(
+                    environ=os.environ, session=browser_session, calendar=payload['calendar'],
+                    now=_dt.datetime.now(_dt.timezone(_dt.timedelta(hours=5, minutes=30))), selector_status=payload)
+                self.json_response(200, payload)
             except (sqlite3.Error, OSError):
                 self.error(503, 'Automatic session status unavailable. Review exposure before retrying.')
             return
