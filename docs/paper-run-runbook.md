@@ -78,3 +78,12 @@ Keep these files private. Broker candles, ledgers and logs must not be committed
 Success means: the worker armed; accepted candles advanced on schedule; no unexplained fault; no position left open after square-off; reconcile matches; no order was sent anywhere; the preflight showed live execution locked throughout.
 
 It does **not** prove: profitability or an edge, realistic fills (fills use the paper model; slippage and liquidity are assumed), behaviour across market regimes, or readiness for live trading. One session is a single sample. Any P&L it shows is a modeled number, not evidence of future results, and engineering readiness scores are not probabilities of profit. Live-money readiness stays closed (`docs/intraday-readiness.md`, `docs/continuous-paper-worker.md`).
+
+## Arming checklist (read-only)
+
+`GET /api/auto-selection` now includes an `arming` block (code: `arming.py`) that lists, for today, whether the
+Zerodha login, the provider-retention attestation (`KITE_DATA_STORAGE_APPROVED`, set only by you in `.env`) and a
+fresh attributed calendar listing today are in place, and which owner step is missing. It only reports: it never
+logs in, sets an attestation, arms, or authorises an order, and a fresh process always starts disarmed.
+Automatic selection also refuses to start on a stale calendar. The single "arm for today" action is the existing Start route used with this checklist: the checklist shows what is in place, and you press Start yourself. The provider-retention check is enforced by that route, not by `AutoSelector.start()` itself (accepted limit: a direct programmatic caller bypasses it). Separately, the selector sets the local `permitted` data-use flag on the paper accounts it creates, only after the route check has passed; that is not the provider-retention attestation. The checklist's login item does not check token freshness, so it can show PASS where Start would still ask you to reconnect. Bounded auto-arm is **not** implemented; it is
+reserved for after the supervision phase has been reviewed (see `docs/full-automation-master-prompt.md`).

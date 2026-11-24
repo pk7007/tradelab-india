@@ -12,6 +12,7 @@ import time
 import daily_pipeline
 from intraday_contract import validate
 import lineage_store
+import trading_calendar
 from market_contract import session_for
 from market_data import clean_candles
 from paper_worker import PaperWorker
@@ -150,6 +151,8 @@ class AutoSelector:
                 raise ValueError('Previous selection cycle is stopping; wait before restarting.')
             validate(config)
             now=self.clock()
+            # A stale or malformed calendar must not arm anything (CalendarError is a ValueError).
+            trading_calendar.validate(calendar,now.isoformat(),strict_sessions=False)
             with self.engine.db() as db:
                 saved=db.execute('SELECT day,account,body FROM auto_selection WHERE day=?',(now.date().isoformat(),)).fetchone()
                 if not saved:
