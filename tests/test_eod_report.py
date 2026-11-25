@@ -251,6 +251,19 @@ class CliTests(unittest.TestCase):
         self.assertEqual(cli.main(['--db', str(self.path), '--day', DAY, '--alerts', str(self.root / 'typo.sqlite'),
                                    '--out', str(self.root / 'reports')], io.StringIO()), 1)
 
+    def test_the_default_inbox_is_the_file_the_app_writes_and_its_incidents_count(self):
+        app = (Path(__file__).resolve().parents[1] / 'app.py').read_text(encoding='utf-8')
+        self.assertIn("ALERTS = OperationalAlerts(PORTAL.path.parent / 'operational-alerts.sqlite')", app)
+        self.assertEqual(cli.default_alerts({'TRADELAB_PORTAL_DB': str(self.root / 'p' / 'portal.sqlite')}),
+                         self.root / 'p' / 'operational-alerts.sqlite')
+        self.assertEqual(cli.default_alerts({'LOCALAPPDATA': str(self.root)}),
+                         self.root / 'TradeLabIndia' / 'operational-alerts.sqlite')
+        OperationalAlerts(self.root / 'p' / 'operational-alerts.sqlite').observe('paper:token-loss', 'Zerodha login lost.', True,
+                                                                                 severity='critical')
+        from unittest.mock import patch
+        with patch.dict('os.environ', {'TRADELAB_PORTAL_DB': str(self.root / 'p' / 'portal.sqlite')}):
+            self.assertEqual(cli.main(['--db', str(self.path), '--day', DAY, '--out', str(self.root / 'r')], io.StringIO()), 1)
+
     def test_a_bad_date_is_a_clean_error_not_a_traceback(self):
         for args in (['--day', 'tomorrow'], ['--week-ending', '2026-99-01']):
             out = io.StringIO()

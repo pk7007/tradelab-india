@@ -182,6 +182,23 @@ class ReadinessTests(Base):
         _, _, c = self.items('--calendar', str(bad))
         self.assertEqual(c['calendar']['status'], 'FAIL')
 
+    def test_squareoff_fails_only_when_no_account_can_finish_before_close(self):
+        from paper import PaperEngine
+        cal = str(ROOT / 'docs' / 'infy-paper-calendar-2026-11-20.json')      # close 15:15
+        engine = PaperEngine(self.tmp / 'paper.sqlite')
+        late = dict(symbol='DEMO', provider='p', adjustment='None', source='imported', permitted=True, capital=10000,
+                    units=10, maxExposure=5000, dailyLossLimit=500, costBps=10, slippageBps=5, strategy='intraday-v1',
+                    maxLoss=100, stopDistancePct=1, targetMultiple=2, participationPct=5, entryEnd='14:30', squareOff='15:15')
+        engine.create(late)
+        _, _, c = self.items('--calendar', cal)
+        self.assertEqual(c['calendar']['status'], 'FAIL')
+        self.assertIn('15:15', c['calendar']['detail'])
+        engine.create(dict(late, squareOff='15:05'))
+        code, _, c = self.items('--calendar', cal)
+        self.assertEqual(c['calendar']['status'], 'PASS')
+        self.assertIn('1 of 2', c['calendar']['detail'])
+        self.assertIn('cannot be armed', c['calendar']['detail'])
+
     def test_stale_calendar_fails_and_pass_reports_version_and_runway(self):
         import json
         sample = json.loads((ROOT / 'docs' / 'infy-paper-calendar-2026-11-20.json').read_text())

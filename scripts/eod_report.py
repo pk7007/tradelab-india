@@ -25,6 +25,13 @@ def _base():
     return Path(os.environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia'
 
 
+def default_alerts(environ=None):
+    """The incident inbox app.py writes: next to its portal database, named operational-alerts.sqlite."""
+    environ = os.environ if environ is None else environ
+    base = Path(environ.get('LOCALAPPDATA', str(ROOT / 'data' / 'private'))) / 'TradeLabIndia'
+    return Path(environ.get('TRADELAB_PORTAL_DB', str(base / 'portal.sqlite'))).parent / 'operational-alerts.sqlite'
+
+
 def main(argv=None, out=None):
     out = out or sys.stdout
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -36,7 +43,7 @@ def main(argv=None, out=None):
     group.add_argument('--week-ending')
     args = parser.parse_args(argv)
     required = args.alerts is not None
-    alerts = args.alerts or str(_base() / 'alerts.sqlite')
+    alerts = args.alerts or str(default_alerts())
     try:
         dt.date.fromisoformat(args.week_ending or args.day)
     except ValueError:

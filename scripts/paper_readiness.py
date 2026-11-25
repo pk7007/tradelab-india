@@ -236,15 +236,21 @@ def calendar_check(path, configs, now):
         return check('calendar', 'Session calendar covers today', 'BLOCKED', '%s is marked as a holiday/closed in the manifest.' % today,
                      'Owner: arm on a date the manifest lists as open.')
     close = dt.datetime.fromisoformat(session['end'])
-    for config in configs:
-        if config.get('strategy') == 'intraday-v1' and config.get('squareOff'):
-            exit_open = dt.datetime.combine(close.date(), dt.time.fromisoformat(config['squareOff']), IST)
-            if exit_open + dt.timedelta(minutes=5) >= close:
-                return check('calendar', 'Session calendar covers today', 'FAIL',
-                             'Square-off %s for %s completes at or after the session close %s.' % (config['squareOff'], config.get('symbol', '?'), close.time().isoformat('minutes')))
-    return check('calendar', 'Session calendar covers today', 'PASS', 'Manifest %s lists %s as open %s-%s IST; square-off completes before close; %d trading days of runway through %s. This is attestation, not exchange verification.' % (
+    intraday = [c for c in configs if c.get('strategy') == 'intraday-v1' and c.get('squareOff')]
+    late = []
+    for config in intraday:
+        exit_open = dt.datetime.combine(close.date(), dt.time.fromisoformat(config['squareOff']), IST)
+        if exit_open + dt.timedelta(minutes=5) >= close:
+            late.append('%s square-off %s' % (config.get('symbol', '?'), config['squareOff']))
+    if late and len(late) == len(intraday):
+        return check('calendar', 'Session calendar covers today', 'FAIL',
+                     'No Intraday v1 account can be armed: square-off completes at or after the session close %s (%s).' % (close.time().isoformat('minutes'), '; '.join(late)),
+                     'Owner: create a new account whose square-off bar completes before the close (the reviewed schedule uses 15:05).')
+    usable = ('%d of %d Intraday v1 account(s) square off before today\'s close; the others cannot be armed on this calendar (%s). ' % (
+        len(intraday) - len(late), len(intraday), '; '.join(late))) if late else 'square-off completes before close; '
+    return check('calendar', 'Session calendar covers today', 'PASS', 'Manifest %s lists %s as open %s-%s IST; %s%d trading days of runway through %s. This is attestation, not exchange verification.' % (
         info['version'], today, dt.datetime.fromisoformat(session['start']).time().isoformat('minutes'), close.time().isoformat('minutes'),
-        info['runwayTradingDays'], info['lastDate']))
+        usable, info['runwayTradingDays'], info['lastDate']))
 
 
 def storage_approval(env):
